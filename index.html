@@ -128,7 +128,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
       <li>On time (before the next prayer starts; Isha until midnight): 1 point</li>
       <li>Late, up to 2 hours after that: ½ point</li>
       <li>More than 2 hours late: ¼ point</li>
-      <li>1 point = $0.50</li>
+      <li>1 point = $0.25</li>
     </ul>
   </section>
 
@@ -144,7 +144,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
 <script>
 /* ===== Settings ===== */
 const CONFIG = { scriptUrl: "https://script.google.com/macros/s/AKfycbwUy58Rh6waff-ylUi3tFNydKCKtES9JDuwuaFN-JAzCMw2luEi7tuwmQqhSPRwVnKg5g/exec" };      // Google Apps Script web-app URL (…/exec)
-const RULES = { onTime: 1, late: 0.5, veryLate: 0.25, lateHours: 2, dollarsPerPoint: 0.5 };
+const RULES = { onTime: 1, late: 0.5, veryLate: 0.25, lateHours: 2, dollarsPerPoint: 0.25 };
 const KIDS = [{ id: "Yousuf", kind: "boy" }, { id: "Eva", kind: "girl" }];
 const PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const NEXT_END = { Fajr: "sunrise", Dhuhr: "asr", Asr: "maghrib", Maghrib: "isha" };

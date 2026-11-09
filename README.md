@@ -4,7 +4,7 @@ A one-page prayer check-in for Yousuf and Eva.
 
 - Each child opens their **personal link** once; the phone remembers them. After that they open the page and tap **Prayed**.
 - Buttons stay locked until each prayer time starts (Toronto, ISNA method). After the time ends they turn into **Prayed (late)**.
-- Points: on time 1, up to 2 h late 0.5, later 0.25. 1 point = $0.50. Dad's view shows both children and the month total, and can remove a wrong entry.
+- Points: on time 1, up to 2 h late 0.5, later 0.25. 1 point = $0.25. Dad's view shows both children and the month total, and can remove a wrong entry.
 - Taps are saved to the family Google Sheet (tab **Log**) through a small Google Apps Script (`apps-script/Code.gs`).
 
 ## Setup (once)
