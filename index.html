@@ -7,13 +7,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Prayers">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-180.png">
 <title>Prayers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
 <style>
+
 :root{
   --bg:#eef2f1; --surface:#ffffff; --fg:#17312e; --muted:#5d716e; --line:#d5dfdc;
   --accent:#1f6f62; --accent-ink:#ffffff; --gold:#a8771f; --done:#2f7d4f; --done-bg:#e3f2e8; --wait-bg:#eef1f0;
@@ -68,40 +68,81 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .foot{font-size:12px;color:var(--muted);text-align:center}
 .foot button{background:none;color:var(--muted);text-decoration:underline;padding:4px;font-weight:400}
 @media (prefers-reduced-motion:no-preference){.prow{transition:background .25s}}
+
+.hello{display:flex;align-items:center;gap:12px}
+.hello .av{width:56px;height:56px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--wait-bg);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat b{font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.stat.money b{color:var(--gold)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:500}
+td.money{font-weight:700;color:var(--gold)}
+.tablewrap{overflow-x:auto}
+.hist{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.hitem{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.hitem:last-child{border-bottom:0}
+.hitem .what{min-width:0}
+.hitem small{color:var(--muted)}
+.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);padding:6px 10px;font-size:13px;font-weight:500}
+select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%}
+.monthbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.rules{font-size:13px;color:var(--muted);margin:0;padding-left:18px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="eyebrow">Toronto · ISNA prayer times</div>
-    <h1>Who prayed?</h1>
+    <h1 id="title">Prayers</h1>
     <p class="sub" id="datestr"></p>
     <p class="sub" id="nextline"></p>
   </header>
 
-  <section class="panel" id="setup" hidden>
-    <h2>One-time setup</h2>
-    <p class="note">Paste the Google Form pre-filled link (choose Yousuf + Fajr, then copy the link). This connects the buttons to your sheet on this phone.</p>
-    <label for="prefill">Pre-filled link<input id="prefill" placeholder="https://docs.google.com/forms/d/e/…/viewform?…" autocomplete="off"></label>
-    <button class="primary" id="savesetup">Connect</button>
-    <div class="status" id="setupstatus" role="status"></div>
+  <section class="panel" id="login" hidden>
+    <h2>Sign in</h2>
+    <label for="who">Name<select id="who"><option>Yousuf</option><option>Eva</option><option>Dad</option></select></label>
+    <label for="pass">Password<input id="pass" type="password" autocomplete="current-password"></label>
+    <button class="primary" id="loginbtn">Sign in</button>
+    <div class="status" id="loginstatus" role="status"></div>
   </section>
 
-  <section class="panel" id="main">
-    <div class="kids" id="kidbtns"></div>
+  <section class="panel" id="today" hidden>
+    <div class="hello" id="hello"></div>
+    <div class="kids" id="kidbtns" hidden></div>
     <div class="rows" id="prows"></div>
     <div class="status" id="status" role="status" aria-live="polite"></div>
   </section>
 
-  <p class="foot">Each tap is saved to the family sheet with the exact time. <button id="resetbtn">Setup</button></p>
+  <section class="panel" id="month" hidden>
+    <div class="monthbar"><h2 id="monthtitle">This month</h2><button class="ghost" id="monthtoggle">Last month</button></div>
+    <div id="monthbody"></div>
+    <ul class="rules">
+      <li>On time (before the next prayer starts; Isha until midnight): 1 point</li>
+      <li>Late, up to 2 hours after that: ½ point</li>
+      <li>More than 2 hours late: ¼ point</li>
+      <li>1 point = $0.50</li>
+    </ul>
+  </section>
+
+  <section class="panel" id="history" hidden>
+    <h2>Recent</h2>
+    <div class="hist" id="histlist"></div>
+  </section>
+
+  <p class="foot"><span id="whoami"></span> <button id="logout" hidden>Sign out</button></p>
 </div>
 
 <script>
-/* ---- Fill these in once (from the Google Form pre-filled link) ---- */
-const CONFIG = { formUrl: "__FORM_URL__", childEntry: "__CHILD_ENTRY__", prayerEntry: "__PRAYER_ENTRY__" };
-const KIDS=[{id:"Yousuf",kind:"boy"},{id:"Eva",kind:"girl"}];
-const PRAYERS=["Fajr","Dhuhr","Asr","Maghrib","Isha"];
-const NEXT_END={Fajr:"sunrise",Dhuhr:"asr",Asr:"maghrib",Maghrib:"isha"};
+/* ===== Settings ===== */
+const CONFIG = { scriptUrl: "__SCRIPT_URL__" };      // Google Apps Script web-app URL (…/exec)
+const RULES = { onTime: 1, late: 0.5, veryLate: 0.25, lateHours: 2, dollarsPerPoint: 0.5 };
+const KIDS = [{ id: "Yousuf", kind: "boy" }, { id: "Eva", kind: "girl" }];
+const PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
+const NEXT_END = { Fajr: "sunrise", Dhuhr: "asr", Asr: "maghrib", Maghrib: "isha" };
+const UNDO_MINUTES = 15;
 
 const ICONS={
 fajr:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="10" cy="10" r="1.6" fill="var(--moon)"/><circle cx="38" cy="8" r="1.2" fill="var(--moon)"/><path d="M13 32a11 11 0 0 1 22 0z" fill="var(--sun)"/><path d="M24 13v4M13.4 18.4l2.8 2.8M34.6 18.4l-2.8 2.8M6 32h36M14 38h20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>',
@@ -130,61 +171,223 @@ const fmt=dt=>dt.toLocaleTimeString("en",{timeZone:TZ,hour:"numeric",minute:"2-d
 return{times,todayParts,fmt,TZ}})();
 
 
-const $=id=>document.getElementById(id);
-function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
-function icon(n,c){const s=document.createElement("span");s.className=c;s.innerHTML=ICONS[n]||"";return s}
-const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-function cfg(){const c=store.get("formcfg");return CONFIG.formUrl.startsWith("http")?CONFIG:(c&&c.formUrl?c:null)}
-function todayKey(){const [y,m,d]=PT.todayParts(new Date());return y+"-"+m+"-"+d}
-function todayTimes(){const [y,m,d]=PT.todayParts(new Date());return PT.times(y,m,d,false)}
-function windowOf(p,t){const k=p.toLowerCase();const start=t[k];let end;
-  if(NEXT_END[p])end=t[NEXT_END[p]];else{/* Isha counts as on time until midnight (Toronto), same as the sheet */
-    const hh=+new Intl.DateTimeFormat("en-GB",{timeZone:PT.TZ,hour:"2-digit",hour12:false}).format(start),mm=+new Intl.DateTimeFormat("en-GB",{timeZone:PT.TZ,minute:"2-digit"}).format(start);
-    end=new Date(start.getTime()+((24*60-hh*60-mm)*60-1)*1000);}
-  return{start,end}}
-let sel=store.get("selkid")||"Yousuf";
-function sentToday(){const s=store.get("sent")||{};return s[todayKey()]||{}}
-function markSent(kid,p,at){const s=store.get("sent")||{};const k=todayKey();const keep={};keep[k]=s[k]||{};keep[k][kid+"|"+p]=at;store.set("sent",keep)}
+/* ===== Helpers ===== */
+const $ = id => document.getElementById(id);
+function el(t, c, x) { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+function icon(n, c) { const s = document.createElement("span"); s.className = c; s.innerHTML = ICONS[n] || ""; return s; }
+const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const pad = n => String(n).padStart(2, "0");
+const parts = ms => PT.todayParts(new Date(ms));            // [y,m,d] in Toronto
+const dayKey = p => p[0] + "-" + pad(p[1]) + "-" + pad(p[2]);
+const monthKey = p => p[0] + "-" + pad(p[1]);
+const fmtT = ms => new Date(ms).toLocaleTimeString("en", { timeZone: PT.TZ, hour: "numeric", minute: "2-digit" });
+const fmtD = ms => new Date(ms).toLocaleDateString("en", { timeZone: PT.TZ, weekday: "short", month: "short", day: "numeric" });
+const money = n => "$" + (Math.round(n * 100) / 100).toFixed(2);
+const pts = n => (Math.round(n * 100) / 100).toString();
+const kidKind = id => (KIDS.find(k => k.id === id) || {}).kind || "boy";
 
-function render(){
-  const c=cfg();$("setup").hidden=!!c;$("main").hidden=!c;
-  $("datestr").textContent=new Date().toLocaleDateString("en",{timeZone:PT.TZ,weekday:"long",month:"long",day:"numeric"});
-  const t=todayTimes(),now=Date.now(),sent=sentToday();
-  const nx=PRAYERS.find(p=>t[p.toLowerCase()].getTime()>now);
-  $("nextline").textContent=nx?"Next: "+nx+" at "+PT.fmt(t[nx.toLowerCase()]):"All of today's prayers have started";
-  if(!c)return;
-  const kb=$("kidbtns");kb.replaceChildren();
-  KIDS.forEach(k=>{const n=PRAYERS.filter(p=>sent[k.id+"|"+p]).length;
-    const b=el("button","kidbtn");b.setAttribute("aria-pressed",String(sel===k.id));
-    const tx=el("div");tx.append(el("b",null,k.id),el("span","count",n+" of 5 today"));
-    b.append(icon(k.kind,"av"),tx);b.onclick=()=>{sel=k.id;store.set("selkid",sel);$("status").textContent="";render()};kb.append(b)});
-  const box=$("prows");box.replaceChildren();
-  PRAYERS.forEach(p=>{
-    const w=windowOf(p,t),done=sent[sel+"|"+p],row=el("div","prow"),left=el("div","pleft"),tx=el("div");
-    tx.append(el("div","pname",p),el("div","ptime",PT.fmt(w.start)+" – "+(p==="Isha"?"midnight":PT.fmt(w.end))));
-    left.append(icon(p.toLowerCase(),"picon"),tx);const right=el("div","right");
-    if(done){row.classList.add("done");right.append(el("span","chip ok","✓ "+new Date(done).toLocaleTimeString("en",{timeZone:PT.TZ,hour:"numeric",minute:"2-digit"})))}
-    else if(now<w.start.getTime()){right.append(el("span","chip","Opens "+PT.fmt(w.start)))}
-    else{const late=now>w.end.getTime();if(late)row.classList.add("late");
-      const b=el("button","primary"+(late?" lateb":""),late?"Prayed (late)":"Prayed");b.onclick=()=>send(p,b);right.append(b)}
-    row.append(left,right);box.append(row)});
+const tcache = {};
+function timesFor(p) { const k = dayKey(p); return tcache[k] || (tcache[k] = PT.times(p[0], p[1], p[2], false)); }
+function windowFor(prayer, p) {
+  const t = timesFor(p), start = t[prayer.toLowerCase()];
+  let end;
+  if (NEXT_END[prayer]) end = t[NEXT_END[prayer]];
+  else { // Isha: until midnight Toronto
+    const hh = +new Intl.DateTimeFormat("en-GB", { timeZone: PT.TZ, hour: "2-digit", hour12: false }).format(start);
+    const mm = +new Intl.DateTimeFormat("en-GB", { timeZone: PT.TZ, minute: "2-digit" }).format(start);
+    end = new Date(start.getTime() + ((24 * 60 - hh * 60 - mm) * 60 - 1) * 1000);
+  }
+  return { start: start.getTime(), end: end.getTime() };
 }
-async function send(p,btn){
-  const c=cfg();if(!c)return;btn.disabled=true;$("status").className="status";$("status").textContent="Saving…";
-  const fd=new URLSearchParams();fd.append("entry."+c.childEntry,sel);fd.append("entry."+c.prayerEntry,p);
-  try{await fetch(c.formUrl,{method:"POST",mode:"no-cors",body:fd});
-    markSent(sel,p,Date.now());$("status").textContent="Saved: "+sel+" – "+p+". Well done!";render();}
-  catch(e){btn.disabled=false;$("status").className="status err";$("status").textContent="Not saved – check the internet and tap again."}
+function classify(at, prayer) {
+  const w = windowFor(prayer, parts(at));
+  if (at < w.start) return { key: "before", label: "Before time – not counted", points: 0, w };
+  if (at <= w.end) return { key: "ontime", label: "On time", points: RULES.onTime, w };
+  if (at <= w.end + RULES.lateHours * 3600e3) return { key: "late", label: "Late", points: RULES.onTime * RULES.late, w };
+  return { key: "verylate", label: "Late 2h+", points: RULES.onTime * RULES.veryLate, w };
 }
-function parsePrefill(url){
-  const u=new URL(url.trim());const m=u.pathname.match(/\/forms\/d\/e\/([^/]+)\//);if(!m)throw 0;
-  let child,prayer;u.searchParams.forEach((v,k)=>{if(!k.startsWith("entry."))return;const id=k.slice(6);
-    if(KIDS.some(x=>x.id===v))child=id;if(PRAYERS.includes(v))prayer=id});
-  if(!child||!prayer)throw 0;return{formUrl:"https://docs.google.com/forms/d/e/"+m[1]+"/formResponse",childEntry:child,prayerEntry:prayer}}
-$("savesetup").onclick=()=>{try{store.set("formcfg",parsePrefill($("prefill").value));render()}
-  catch(e){$("setupstatus").className="status err";$("setupstatus").textContent="That link doesn't look right. Use Get pre-filled link with Yousuf and Fajr selected."}};
-$("resetbtn").onclick=()=>{if(CONFIG.formUrl.startsWith("http")){$("status").textContent="This page is already connected to the family sheet.";return}store.set("formcfg",null);render()};
-render();setInterval(render,30000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)render()});
+/* rows: [ms, child, prayer] -> entries with status; duplicates (same day/child/prayer) count once */
+function process(rows) {
+  const seen = {};
+  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer]) => {
+    const c = classify(at, prayer), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
+    let e = { at, child, prayer, day, month: day.slice(0, 7), ...c };
+    if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
+    return e;
+  });
+}
+
+/* ===== API ===== */
+let session = store.get("session");   // {user, pass, admin}
+let entries = [], loaded = false, sel = store.get("selkid") || "Yousuf", showLastMonth = false, busy = false;
+
+async function api(params) {
+  const u = new URL(CONFIG.scriptUrl);
+  Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+  const r = await fetch(u.toString(), { redirect: "follow" });
+  const j = await r.json();
+  if (!j.ok) { const err = new Error(j.message || "Something went wrong"); err.code = j.error; throw err; }
+  return j;
+}
+const auth = () => ({ user: session.user, pass: session.pass });
+
+async function load() {
+  if (!session) return;
+  const since = Date.now() - 70 * 86400e3;
+  try {
+    const j = await api({ ...auth(), action: "list", since });
+    entries = process(j.rows); loaded = true; render();
+  } catch (e) {
+    if (e.code === "login") { session = null; store.set("session", null); render(); return; }
+    say("Can't reach the family sheet. Check the internet.", true);
+  }
+}
+
+/* ===== Actions ===== */
+async function confirmPrayer(prayer, btn) {
+  if (busy) return; busy = true; btn.disabled = true; say("Saving…");
+  try {
+    const j = await api({ ...auth(), action: "add", prayer });
+    entries = process([...entries.map(e => [e.at, e.child, e.prayer]), [j.at, session.user, prayer]]);
+    const e = entries.find(x => x.at === j.at);
+    say(e.key === "ontime" ? "Well done! " + prayer + " on time: +1 point" :
+        e.key === "dup" ? "Already saved earlier today." :
+        prayer + " saved as " + e.label.toLowerCase() + ": +" + pts(e.points) + " point");
+    render();
+  } catch (err) { btn.disabled = false; say(err.message || "Not saved. Try again.", true); }
+  busy = false;
+}
+async function undo(e, btn) {
+  btn.disabled = true;
+  try {
+    if (session.admin) await api({ ...auth(), action: "remove", child: e.child, at: e.at });
+    else await api({ ...auth(), action: "undo", prayer: e.prayer });
+    entries = process(entries.filter(x => x.at !== e.at).map(x => [x.at, x.child, x.prayer]));
+    say("Removed " + e.child + " – " + e.prayer + "."); render();
+  } catch (err) { btn.disabled = false; say(err.message, true); }
+}
+function say(msg, err) { $("status").className = "status" + (err ? " err" : ""); $("status").textContent = msg; }
+
+/* ===== Render ===== */
+function render() {
+  const now = Date.now(), tp = parts(now), today = dayKey(tp);
+  $("datestr").textContent = new Date().toLocaleDateString("en", { timeZone: PT.TZ, weekday: "long", month: "long", day: "numeric" });
+  const nxt = PRAYERS.find(p => windowFor(p, tp).start > now);
+  $("nextline").textContent = nxt ? "Next: " + nxt + " at " + fmtT(windowFor(nxt, tp).start) : "All of today's prayers have started";
+
+  const signedIn = !!session;
+  $("login").hidden = signedIn;
+  ["today", "month", "history"].forEach(id => $(id).hidden = !signedIn);
+  $("logout").hidden = !signedIn;
+  if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
+
+  const admin = session.admin;
+  const kid = admin ? sel : session.user;
+  $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
+  $("whoami").textContent = "Signed in as " + session.user + (admin ? " (admin)" : "") + ".";
+
+  // header / kid switch
+  const hello = $("hello"); hello.replaceChildren();
+  const kb = $("kidbtns"); kb.replaceChildren(); kb.hidden = !admin; hello.hidden = admin;
+  const todayPts = id => entries.filter(e => e.child === id && e.day === today).reduce((a, e) => a + e.points, 0);
+  if (admin) {
+    KIDS.forEach(k => {
+      const b = el("button", "kidbtn"); b.setAttribute("aria-pressed", String(sel === k.id));
+      const tx = el("div"); tx.append(el("b", null, k.id), el("span", "count", pts(todayPts(k.id)) + (todayPts(k.id) === 1 ? " point" : " points") + " today"));
+      b.append(icon(k.kind, "av"), tx); b.onclick = () => { sel = k.id; store.set("selkid", sel); say(""); render(); };
+      kb.append(b);
+    });
+  } else {
+    const tx = el("div"); tx.append(el("b", null, "Today: " + pts(todayPts(kid)) + (todayPts(kid) === 1 ? " point" : " points")), el("div", "note", "Tap Prayed right after you pray."));
+    hello.append(icon(kidKind(kid), "av"), tx);
+  }
+
+  // today's prayers
+  const box = $("prows"); box.replaceChildren();
+  if (!loaded) box.append(el("p", "note", "Loading…"));
+  else PRAYERS.forEach(p => {
+    const w = windowFor(p, tp), row = el("div", "prow"), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
+    tx.append(el("div", "pname", p), el("div", "ptime", fmtT(w.start) + " – " + (p === "Isha" ? "midnight" : fmtT(w.end))));
+    left.append(icon(p.toLowerCase(), "picon"), tx);
+    const done = entries.find(e => e.child === kid && e.day === today && e.prayer === p && (e.key === "ontime" || e.key === "late" || e.key === "verylate"));
+    if (done) {
+      row.classList.add(done.key === "ontime" ? "done" : "late");
+      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + fmtT(done.at) + " · +" + pts(done.points)));
+      if (admin || now - done.at < UNDO_MINUTES * 60000) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
+    } else if (now < w.start) {
+      right.append(el("span", "chip", "Opens " + fmtT(w.start)));
+    } else if (admin) {
+      right.append(el("span", "chip " + (now > w.end ? "late" : ""), now > w.end ? "Not confirmed" : "Waiting"));
+    } else {
+      const late = now > w.end; if (late) row.classList.add("late");
+      const b = el("button", "primary" + (late ? " lateb" : ""), late ? "Prayed (late)" : "Prayed");
+      b.onclick = () => confirmPrayer(p, b); right.append(b);
+    }
+    row.append(left, right); box.append(row);
+  });
+
+  // month
+  const mp = showLastMonth ? parts(Date.UTC(tp[0], tp[1] - 2, 15)) : tp, mk = monthKey(mp);
+  $("monthtitle").textContent = new Date(Date.UTC(mp[0], mp[1] - 1, 15)).toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "UTC" });
+  $("monthtoggle").textContent = showLastMonth ? "This month" : "Last month";
+  const mb = $("monthbody"); mb.replaceChildren();
+  const kidsShown = admin ? KIDS.map(k => k.id) : [kid];
+  const sum = id => { const es = entries.filter(e => e.child === id && e.month === mk);
+    const p = es.reduce((a, e) => a + e.points, 0);
+    return { on: es.filter(e => e.key === "ontime").length, late: es.filter(e => e.key === "late" || e.key === "verylate").length, p, d: p * RULES.dollarsPerPoint }; };
+  if (!admin) {
+    const s = sum(kid), g = el("div", "stats");
+    [["On time", s.on, ""], ["Points", pts(s.p), ""], ["Earned", money(s.d), "money"]].forEach(([l, v, c]) => { const d = el("div", "stat " + c); d.append(el("b", null, String(v)), el("span", null, l)); g.append(d); });
+    mb.append(g);
+  } else {
+    const tw = el("div", "tablewrap"), t = el("table"), hr = el("tr");
+    ["Child", "On time", "Late", "Points", "Amount"].forEach(h => hr.append(el("th", null, h))); t.append(hr);
+    kidsShown.forEach(id => { const s = sum(id), tr = el("tr");
+      tr.append(el("td", null, id), el("td", null, String(s.on)), el("td", null, String(s.late)), el("td", null, pts(s.p)), el("td", "money", money(s.d))); t.append(tr); });
+    tw.append(t); mb.append(tw);
+  }
+
+  // history
+  const hl = $("histlist"); hl.replaceChildren();
+  const recent = entries.filter(e => kidsShown.includes(e.child)).slice(-12).reverse();
+  if (!recent.length) hl.append(el("p", "note", "Nothing yet. Each Prayed tap shows up here."));
+  recent.forEach(e => {
+    const it = el("div", "hitem"), w = el("div", "what");
+    w.append(el("div", null, (admin ? e.child + " · " : "") + e.prayer + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at)));
+    const r = el("div", "right"); r.append(el("span", "chip " + (e.key === "ontime" ? "ok" : e.points ? "late" : ""), "+" + pts(e.points)));
+    if (admin) { const u = el("button", "ghost", "Remove"); u.onclick = () => undo(e, u); r.append(u); }
+    it.append(w, r); hl.append(it);
+  });
+}
+
+/* ===== Sign in ===== */
+$("loginbtn").onclick = async () => {
+  const user = $("who").value, pass = $("pass").value;
+  $("loginstatus").className = "status"; $("loginstatus").textContent = "Checking…";
+  if (!CONFIG.scriptUrl.startsWith("https://")) { $("loginstatus").className = "status err"; $("loginstatus").textContent = "This page isn't connected to the family sheet yet."; return; }
+  try {
+    const j = await api({ user, pass, action: "login" });
+    session = { user, pass, admin: !!j.admin }; store.set("session", session);
+    $("pass").value = ""; $("loginstatus").textContent = ""; loaded = false; render(); load();
+  } catch (e) { $("loginstatus").className = "status err"; $("loginstatus").textContent = e.message; }
+};
+$("pass").addEventListener("keydown", e => { if (e.key === "Enter") $("loginbtn").click(); });
+$("logout").onclick = () => { session = null; store.set("session", null); entries = []; loaded = false; render(); };
+$("monthtoggle").onclick = () => { showLastMonth = !showLastMonth; render(); };
+
+(async () => {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("u") && h.get("k")) {
+    history.replaceState(null, "", location.pathname + location.search);   // hide the password from the address bar
+    try { const j = await api({ user: h.get("u"), pass: h.get("k"), action: "login" });
+      session = { user: h.get("u"), pass: h.get("k"), admin: !!j.admin }; store.set("session", session); }
+    catch (e) { $("loginstatus").className = "status err"; $("loginstatus").textContent = "This personal link didn't work: " + e.message; }
+  }
+  render(); load();
+})();
+setInterval(() => { render(); }, 30000);
+setInterval(() => { if (!document.hidden) load(); }, 120000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); } });
 </script>
 </body>
 </html>
