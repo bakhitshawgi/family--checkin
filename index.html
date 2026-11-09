@@ -65,6 +65,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0}
 label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
 ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.timein{width:auto;min-width:0;padding:8px}
+.markform{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:4px;border-top:1px solid var(--line)}
+.markform label{flex-basis:100%;font-size:13px}
+.markform .primary{min-width:90px;min-height:40px}
+.markb{min-width:0}
 .foot{font-size:12px;color:var(--muted);text-align:center}
 .foot button{background:none;color:var(--muted);text-decoration:underline;padding:4px;font-weight:400}
 @media (prefers-reduced-motion:no-preference){.prow{transition:background .25s}}
@@ -210,9 +215,9 @@ function classify(at, prayer) {
 /* rows: [ms, child, prayer] -> entries with status; duplicates (same day/child/prayer) count once */
 function process(rows) {
   const seen = {};
-  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer]) => {
+  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by]) => {
     const c = classify(at, prayer), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
-    let e = { at, child, prayer, day, month: day.slice(0, 7), ...c };
+    let e = { at, child, prayer, by: by || child, day, month: day.slice(0, 7), ...c };
     if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
     return e;
   });
@@ -250,7 +255,7 @@ async function confirmPrayer(prayer, btn) {
   if (busy) return; busy = true; btn.disabled = true; say("Saving…");
   try {
     const j = await api({ ...auth(), action: "add", prayer });
-    entries = process([...entries.map(e => [e.at, e.child, e.prayer]), [j.at, session.user, prayer]]);
+    entries = process([...entries.map(e => [e.at, e.child, e.prayer, e.by]), [j.at, session.user, prayer, session.user]]);
     const e = entries.find(x => x.at === j.at);
     say(e.key === "ontime" ? "Well done! " + prayer + " on time: +1 point" :
         e.key === "dup" ? "Already saved earlier today." :
@@ -263,12 +268,47 @@ async function undo(e, btn) {
   btn.disabled = true;
   try {
     if (session.admin) await api({ ...auth(), action: "remove", child: e.child, at: e.at });
-    else await api({ ...auth(), action: "undo", prayer: e.prayer });
-    entries = process(entries.filter(x => x.at !== e.at).map(x => [x.at, x.child, x.prayer]));
+    else await api({ ...auth(), action: "undo", prayer: e.prayer, child: e.child });
+    entries = process(entries.filter(x => x.at !== e.at).map(x => [x.at, x.child, x.prayer, x.by]));
     say("Removed " + e.child + " – " + e.prayer + "."); render();
   } catch (err) { btn.disabled = false; say(err.message, true); }
 }
 function say(msg, err) { $("status").className = "status" + (err ? " err" : ""); $("status").textContent = msg; }
+
+/* ===== Parents: mark a prayer for a child (with the real time) ===== */
+function zonedMs(y, m, d, hh, mi) {               // Toronto wall-clock time -> ms
+  const want = Date.UTC(y, m - 1, d, hh, mi); let t = want;
+  for (let i = 0; i < 3; i++) {
+    const f = {}; new Intl.DateTimeFormat("en-US", { timeZone: PT.TZ, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23" })
+      .formatToParts(new Date(t)).forEach(x => f[x.type] = +x.value);
+    t += want - Date.UTC(f.year, f.month - 1, f.day, f.hour, f.minute);
+  }
+  return t;
+}
+function hhmm(ms) { return new Intl.DateTimeFormat("en-GB", { timeZone: PT.TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ms)); }
+function openMark(prayer, kid, w, right) {
+  const row = right.parentElement; right.hidden = true;
+  const form = el("div", "markform"); row.append(form);
+  const now = Date.now(), inp = el("input", "timein"); inp.type = "time"; inp.id = "mark-" + prayer;
+  inp.value = hhmm(Math.min(now, w.end > now ? now : w.end)); inp.setAttribute("aria-label", "Time " + kid + " prayed " + prayer);
+  const ok = el("button", "primary", "Save"), cancel = el("button", "ghost", "Cancel");
+  cancel.onclick = () => render();
+  ok.onclick = async () => {
+    const [hh, mi] = inp.value.split(":").map(Number); if (isNaN(hh)) return;
+    const tp = parts(now), at = zonedMs(tp[0], tp[1], tp[2], hh, mi);
+    if (at > now + 60e3) { say("That time is in the future.", true); return; }
+    if (at < w.start) { say(prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true); return; }
+    ok.disabled = true; say("Saving…");
+    try {
+      const j = await api({ ...auth(), action: "add", child: kid, prayer, at });
+      entries = process([...entries.map(e => [e.at, e.child, e.prayer, e.by]), [j.at, kid, prayer, session.user]]);
+      const e = entries.find(x => x.at === j.at && x.child === kid);
+      say("Saved: " + kid + " – " + prayer + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
+      render();
+    } catch (err) { ok.disabled = false; say(err.message, true); }
+  };
+  const lab = el("label", "note", kid + " prayed " + prayer + " at"); lab.htmlFor = inp.id; form.append(lab, inp, ok, cancel); inp.focus();
+}
 
 /* ===== Render ===== */
 function render() {
@@ -287,7 +327,7 @@ function render() {
   const canRemove = !!session.admin;                      // only Dad removes entries
   const kid = admin ? sel : session.user;
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
-  $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (view only)" : "") + ".";
+  $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (parent)" : "") + ".";
 
   // header / kid switch
   const hello = $("hello"); hello.replaceChildren();
@@ -316,12 +356,14 @@ function render() {
     const done = entries.find(e => e.child === kid && e.day === today && e.prayer === p && (e.key === "ontime" || e.key === "late" || e.key === "verylate"));
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
-      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + fmtT(done.at) + " · +" + pts(done.points)));
-      if (canRemove || (!admin && now - done.at < UNDO_MINUTES * 60000)) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
+      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
+      if (canRemove || (now - done.at < UNDO_MINUTES * 60000 && (!admin || done.by === session.user))) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
     } else if (now < w.start) {
       right.append(el("span", "chip", "Opens " + fmtT(w.start)));
     } else if (admin) {
-      right.append(el("span", "chip " + (now > w.end ? "late" : ""), now > w.end ? "Not confirmed" : "Waiting"));
+      const b = el("button", "primary markb", "Mark prayed");
+      b.onclick = () => openMark(p, kid, w, right);
+      right.append(b);
     } else {
       const late = now > w.end; if (late) row.classList.add("late");
       const b = el("button", "primary" + (late ? " lateb" : ""), late ? "Prayed (late)" : "Prayed");
@@ -357,7 +399,7 @@ function render() {
   if (!recent.length) hl.append(el("p", "note", "Nothing yet. Each Prayed tap shows up here."));
   recent.forEach(e => {
     const it = el("div", "hitem"), w = el("div", "what");
-    w.append(el("div", null, (admin ? e.child + " · " : "") + e.prayer + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at)));
+    w.append(el("div", null, (admin ? e.child + " · " : "") + e.prayer + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at) + (e.by && e.by !== e.child ? " · marked by " + e.by : "")));
     const r = el("div", "right"); r.append(el("span", "chip " + (e.key === "ontime" ? "ok" : e.points ? "late" : ""), "+" + pts(e.points)));
     if (canRemove) { const u = el("button", "ghost", "Remove"); u.onclick = () => undo(e, u); r.append(u); }
     it.append(w, r); hl.append(it);

@@ -44,27 +44,27 @@
 
   /* ---------- texts ---------- */
   const SURAHS = [
-    { name: "Al-Fatiha", note: "Say it in every rak'ah, then say “Ameen” quietly. Maliki school: in the fard prayer, start from “Al-hamdu lillah” without the Bismillah.",
+    { name: "Al-Fatiha", no: 1, note: "Say it in every rak'ah, then say “Ameen” quietly. Maliki school: in the fard prayer, start from “Al-hamdu lillah” without the Bismillah.",
       ar: ["بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ", "الرَّحْمَٰنِ الرَّحِيمِ", "مَالِكِ يَوْمِ الدِّينِ", "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ", "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ", "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ"],
       tr: ["Bismillahir-Rahmanir-Raheem", "Al-hamdu lillahi Rabbil-'alameen", "Ar-Rahmanir-Raheem", "Maliki yawmid-deen", "Iyyaka na'budu wa iyyaka nasta'een", "Ihdinas-siratal-mustaqeem", "Siratal-ladheena an'amta 'alayhim, ghayril-maghdubi 'alayhim wa lad-dalleen"],
       en: ["In the name of Allah, the Most Merciful, the Most Kind.", "All praise is for Allah, Lord of all the worlds,", "the Most Merciful, the Most Kind,", "Master of the Day of Judgement.", "You alone we worship, and You alone we ask for help.", "Guide us to the straight path,", "the path of those You have blessed, not of those who earned Your anger, nor of those who went astray."] },
-    { name: "Al-Ikhlas", note: "A short surah for after Al-Fatiha.",
+    { name: "Al-Ikhlas", no: 112, note: "A short surah for after Al-Fatiha.",
       ar: ["قُلْ هُوَ اللَّهُ أَحَدٌ", "اللَّهُ الصَّمَدُ", "لَمْ يَلِدْ وَلَمْ يُولَدْ", "وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ"],
       tr: ["Qul huwallahu ahad", "Allahus-samad", "Lam yalid wa lam yulad", "Wa lam yakun lahu kufuwan ahad"],
       en: ["Say: He is Allah, the One.", "Allah, the One everyone needs.", "He has no children and was not born.", "And there is nothing like Him."] },
-    { name: "Al-Kawthar", note: "The shortest surah.",
+    { name: "Al-Kawthar", no: 108, note: "The shortest surah.",
       ar: ["إِنَّا أَعْطَيْنَاكَ الْكَوْثَرَ", "فَصَلِّ لِرَبِّكَ وَانْحَرْ", "إِنَّ شَانِئَكَ هُوَ الْأَبْتَرُ"],
       tr: ["Inna a'taynakal-kawthar", "Fasalli li Rabbika wanhar", "Inna shani'aka huwal-abtar"],
       en: ["We have given you Al-Kawthar (abundant good).", "So pray to your Lord and sacrifice.", "The one who hates you is the one cut off."] },
-    { name: "Al-'Asr", note: "",
+    { name: "Al-'Asr", no: 103, note: "",
       ar: ["وَالْعَصْرِ", "إِنَّ الْإِنسَانَ لَفِي خُسْرٍ", "إِلَّا الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ وَتَوَاصَوْا بِالْحَقِّ وَتَوَاصَوْا بِالصَّبْرِ"],
       tr: ["Wal-'asr", "Innal-insana lafi khusr", "Illal-ladheena amanu wa 'amilus-salihati wa tawasaw bil-haqqi wa tawasaw bis-sabr"],
       en: ["By time,", "people are surely at a loss,", "except those who believe, do good, encourage each other to the truth, and encourage each other to be patient."] },
-    { name: "Al-Falaq", note: "",
+    { name: "Al-Falaq", no: 113, note: "",
       ar: ["قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ", "مِن شَرِّ مَا خَلَقَ", "وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ", "وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ", "وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ"],
       tr: ["Qul a'udhu bi Rabbil-falaq", "Min sharri ma khalaq", "Wa min sharri ghasiqin idha waqab", "Wa min sharrin-naffathati fil-'uqad", "Wa min sharri hasidin idha hasad"],
       en: ["Say: I seek protection with the Lord of the daybreak,", "from the harm of what He created,", "from the harm of the night when it is dark,", "from the harm of those who blow on knots,", "and from the harm of a jealous person when they are jealous."] },
-    { name: "An-Nas", note: "",
+    { name: "An-Nas", no: 114, note: "",
       ar: ["قُلْ أَعُوذُ بِرَبِّ النَّاسِ", "مَلِكِ النَّاسِ", "إِلَٰهِ النَّاسِ", "مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ", "الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ", "مِنَ الْجِنَّةِ وَالنَّاسِ"],
       tr: ["Qul a'udhu bi Rabbin-nas", "Malikin-nas", "Ilahin-nas", "Min sharril-waswasil-khannas", "Alladhi yuwaswisu fi sudurin-nas", "Minal-jinnati wan-nas"],
       en: ["Say: I seek protection with the Lord of people,", "the King of people,", "the God of people,", "from the harm of the whisperer who hides,", "who whispers into people's hearts,", "from among jinn and people."] },
@@ -81,15 +81,15 @@
   };
 
   const STEPS = [
-    { pose: "takbir", title: "Start: Takbir", say: "Allahu Akbar", text: "Face the qiblah. Make the intention in your heart for this prayer. Raise your hands to your shoulders and say “Allahu Akbar” (Allah is the Greatest). Hands are raised only at this first takbir." },
-    { pose: "standing", title: "Stand and recite", say: "Al-Fatiha + a short surah", text: "Stand still with your arms resting at your sides (Maliki way). Recite Al-Fatiha. In the 1st and 2nd rak'ah, add a short surah after it (like Al-Ikhlas). In the 3rd and 4th rak'ah, only Al-Fatiha." },
-    { pose: "ruku", title: "Bow: Ruku'", say: "Subhana Rabbiyal-'Adheem ×3", text: "Say “Allahu Akbar” and bow. Hands on your knees, back straight." },
-    { pose: "rising", title: "Stand up again", say: "Sami'Allahu liman hamidah — Rabbana wa lakal-hamd", text: "Rise up straight while saying “Sami'Allahu liman hamidah” (Allah hears those who praise Him), then “Rabbana wa lakal-hamd” (Our Lord, all praise is Yours). Behind an imam, only say “Rabbana wa lakal-hamd”." },
-    { pose: "sujud", title: "Prostrate: Sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and go down. Forehead and nose, both palms, both knees and your toes touch the ground." },
-    { pose: "sitting", title: "Sit for a moment", say: "Rabbighfir li", text: "Say “Allahu Akbar” and sit up. Say “Rabbighfir li” (My Lord, forgive me)." },
-    { pose: "sujud", title: "Second sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and prostrate again, the same way. That finishes one rak'ah. Say “Allahu Akbar” and stand up for the next one." },
-    { pose: "tashahhud", title: "Sit for Tashahhud", say: "At-Tahiyyat…", text: "After the 2nd rak'ah, and at the end of the prayer, sit and say At-Tahiyyat. Close your right hand and move your index finger gently from side to side (Maliki way). In the last sitting, add the Salawat on the Prophet ﷺ." },
-    { pose: "salam", title: "Finish: Salam", say: "As-salamu 'alaykum", text: "Say “As-salamu 'alaykum” once while turning your head to the right (Maliki way). Your prayer is complete!" },
+    { pose: "takbir", sayAr: "اللَّهُ أَكْبَرُ", title: "Start: Takbir", say: "Allahu Akbar", text: "Face the qiblah. Make the intention in your heart for this prayer. Raise your hands to your shoulders and say “Allahu Akbar” (Allah is the Greatest). Hands are raised only at this first takbir." },
+    { pose: "standing", playSurah: 1, title: "Stand and recite", say: "Al-Fatiha + a short surah", text: "Stand still with your arms resting at your sides (Maliki way). Recite Al-Fatiha. In the 1st and 2nd rak'ah, add a short surah after it (like Al-Ikhlas). In the 3rd and 4th rak'ah, only Al-Fatiha." },
+    { pose: "ruku", sayAr: "سُبْحَانَ رَبِّيَ الْعَظِيمِ، سُبْحَانَ رَبِّيَ الْعَظِيمِ، سُبْحَانَ رَبِّيَ الْعَظِيمِ", title: "Bow: Ruku'", say: "Subhana Rabbiyal-'Adheem ×3", text: "Say “Allahu Akbar” and bow. Hands on your knees, back straight." },
+    { pose: "rising", sayAr: "سَمِعَ اللَّهُ لِمَنْ حَمِدَهُ، رَبَّنَا وَلَكَ الْحَمْدُ", title: "Stand up again", say: "Sami'Allahu liman hamidah — Rabbana wa lakal-hamd", text: "Rise up straight while saying “Sami'Allahu liman hamidah” (Allah hears those who praise Him), then “Rabbana wa lakal-hamd” (Our Lord, all praise is Yours). Behind an imam, only say “Rabbana wa lakal-hamd”." },
+    { pose: "sujud", sayAr: "سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى", title: "Prostrate: Sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and go down. Forehead and nose, both palms, both knees and your toes touch the ground." },
+    { pose: "sitting", sayAr: "رَبِّ اغْفِرْ لِي", title: "Sit for a moment", say: "Rabbighfir li", text: "Say “Allahu Akbar” and sit up. Say “Rabbighfir li” (My Lord, forgive me)." },
+    { pose: "sujud", sayAr: "سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى", title: "Second sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and prostrate again, the same way. That finishes one rak'ah. Say “Allahu Akbar” and stand up for the next one." },
+    { pose: "tashahhud", playText: "tashahhud", title: "Sit for Tashahhud", say: "At-Tahiyyat…", text: "After the 2nd rak'ah, and at the end of the prayer, sit and say At-Tahiyyat. Close your right hand and move your index finger gently from side to side (Maliki way). In the last sitting, add the Salawat on the Prophet ﷺ." },
+    { pose: "salam", sayAr: "السَّلَامُ عَلَيْكُمْ", title: "Finish: Salam", say: "As-salamu 'alaykum", text: "Say “As-salamu 'alaykum” once while turning your head to the right (Maliki way). Your prayer is complete!" },
   ];
 
   const WUDU = [
@@ -105,6 +105,46 @@
     ["dua", "After wudu", "Say: “Ash-hadu an la ilaha illallah, wa ash-hadu anna Muhammadan 'abduhu wa rasuluh.”"],
   ];
 
+
+  /* ---------- audio ---------- */
+  // Qur'an: verse-by-verse recordings by Sheikh Mishary Alafasy (everyayah.com).
+  // Phrases & Tashahhud: the device's Arabic voice (text-to-speech), not a human reciter.
+  const pad3 = n => String(n).padStart(3, "0");
+  const ayahUrl = (sura, ayah) => `https://everyayah.com/data/Alafasy_128kbps/${pad3(sura)}${pad3(ayah)}.mp3`;
+  let player = null, playingBtn = null, queue = [];
+  function stopAll() {
+    if (player) { player.onended = null; player.pause(); player = null; }
+    queue = []; try { speechSynthesis.cancel(); } catch (e) {}
+    if (playingBtn) { playingBtn.textContent = playingBtn.dataset.label; playingBtn.classList.remove("on"); playingBtn = null; }
+  }
+  function markBtn(btn) { stopAll(); playingBtn = btn; btn.dataset.label = btn.dataset.label || btn.textContent; btn.textContent = "■ Stop"; btn.classList.add("on"); }
+  function playAyahs(btn, sura, list) {
+    if (playingBtn === btn) { stopAll(); return; }
+    markBtn(btn); queue = list.slice();
+    const next = () => {
+      if (!queue.length) { stopAll(); return; }
+      player = new Audio(ayahUrl(sura, queue.shift()));
+      player.onended = next;
+      player.onerror = () => { stopAll(); alertNote(btn, "Couldn't load the recitation. Check the internet."); };
+      player.play().catch(() => { stopAll(); alertNote(btn, "Tap again to play."); });
+    };
+    next();
+  }
+  let arVoice = null;
+  function pickVoice() { try { const vs = speechSynthesis.getVoices(); arVoice = vs.find(v => /^ar/i.test(v.lang)) || null; } catch (e) {} }
+  try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
+  function speak(btn, text) {
+    if (playingBtn === btn) { stopAll(); return; }
+    if (!("speechSynthesis" in window)) { alertNote(btn, "This device can't read text aloud."); return; }
+    pickVoice();
+    if (!arVoice) { alertNote(btn, "No Arabic voice on this device. On iPad: Settings › Accessibility › Spoken Content › Voices › Arabic."); return; }
+    markBtn(btn);
+    const u = new SpeechSynthesisUtterance(text); u.lang = arVoice.lang; u.voice = arVoice; u.rate = 0.75;
+    u.onend = () => { if (playingBtn === btn) stopAll(); };
+    speechSynthesis.speak(u);
+  }
+  function alertNote(btn, msg) { const n = h("div", "audnote", esc(msg)); btn.insertAdjacentElement("afterend", n); setTimeout(() => n.remove(), 6000); }
+  const playBtn = (label, cls) => { const b = h("button", "playb" + (cls ? " " + cls : ""), esc(label)); b.type = "button"; return b; };
   /* ---------- UI ---------- */
   const css = `
   .learnbtn{background:var(--surface);border:1px solid var(--line);color:var(--accent);border-radius:999px;width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;flex:none}
@@ -133,7 +173,12 @@
   .lov .en{font-size:13px;color:var(--muted)}
   .lov .tip{font-size:13px;color:var(--muted);background:var(--wait-bg);border-radius:10px;padding:10px}
   .lov h2{margin:0}
-  .lov .lcol{display:flex;flex-direction:column;gap:12px}`;
+  .lov .lcol{display:flex;flex-direction:column;gap:12px}
+  .lov .playb{align-self:flex-start;background:var(--sel);color:var(--accent);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;margin-top:6px}
+  .lov .playb.on{background:var(--accent);color:var(--accent-ink)}
+  .lov .ayah .playb{padding:4px 10px;font-size:12px}
+  .lov .audnote{font-size:12px;color:var(--late);margin-top:4px}
+  .lov .shead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}`;
   document.head.insertAdjacentHTML("beforeend", `<style>${css}</style><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri&display=swap">`);
   const BOOK = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2zM12 6v14"/></svg>';
   window.LEARN_BOOK_ICON = BOOK;
@@ -156,10 +201,14 @@
   }
   function howTab() {
     const box = h("div", "lcol");
-    box.append(h("p", "tip", "Every rak'ah has the same moves. Follow the pictures from top to bottom. This guide follows the Maliki school."));
+    box.append(h("p", "tip", "Tap ▶ Listen to hear how to say it. Qur'an recitation: Sheikh Mishary Alafasy. Other phrases are read by the device's Arabic voice. Every rak'ah has the same moves. Follow the pictures from top to bottom. This guide follows the Maliki school."));
     STEPS.forEach((s, k) => {
       const st = h("div", "step");
       st.innerHTML = `${fig(s.pose)}<div><h3>${k + 1}. ${esc(s.title)}</h3><p>${esc(s.text)}</p><span class="say">${esc(s.say)}</span></div>`;
+      const col = st.lastElementChild;
+      if (s.sayAr) { const b = playBtn("▶ Listen"); b.onclick = () => speak(b, s.sayAr); col.append(b); }
+      if (s.playSurah) { const b = playBtn("▶ Listen to Al-Fatiha"); b.onclick = () => playAyahs(b, 1, [1, 2, 3, 4, 5, 6, 7]); col.append(b); }
+      if (s.playText === "tashahhud") { const b = playBtn("▶ Listen"); b.onclick = () => speak(b, TASHAHHUD.ar); col.append(b); }
       box.append(st);
     });
     box.append(textBlock("Tashahhud (At-Tahiyyat)", TASHAHHUD), textBlock("Salawat on the Prophet ﷺ (last sitting)", SALAWAT));
@@ -169,6 +218,7 @@
     const d = h("div", "surah");
     d.append(h("h3", null, esc(title)));
     const a = h("div", "ayah"); a.innerHTML = `<div class="ar">${t.ar}</div><div class="tr">${esc(t.tr)}</div><div class="en">${esc(t.en)}</div>`;
+    const b = playBtn("▶ Listen"); b.onclick = () => speak(b, t.ar); a.append(b);
     d.append(a); return d;
   }
   function wuduTab() {
@@ -186,9 +236,14 @@
     const box = h("div", "lcol");
     SURAHS.forEach(s => {
       const d = h("div", "surah");
-      d.append(h("h3", null, esc(s.name)));
+      const head = h("div", "shead"); head.append(h("h3", null, esc(s.name)));
+      const all = playBtn("▶ Play whole surah"); all.onclick = () => playAyahs(all, s.no, s.ar.map((_, i) => i + 1)); head.append(all);
+      d.append(head);
       if (s.note) d.append(h("p", "tip", esc(s.note)));
-      s.ar.forEach((a, i) => { const ay = h("div", "ayah"); ay.innerHTML = `<div class="ar">${a}</div><div class="tr">${esc(s.tr[i])}</div><div class="en">${esc(s.en[i])}</div>`; d.append(ay); });
+      s.ar.forEach((a, i) => {
+        const ay = h("div", "ayah"); ay.innerHTML = `<div class="ar">${a}</div><div class="tr">${esc(s.tr[i])}</div><div class="en">${esc(s.en[i])}</div>`;
+        const b = playBtn("▶ Verse " + (i + 1)); b.onclick = () => playAyahs(b, s.no, [i + 1]); ay.append(b); d.append(ay);
+      });
       box.append(d);
     });
     return box;
@@ -197,9 +252,9 @@
   window.openLearn = function (prayer) {
     const ov = h("div", "lov"); ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Learn " + prayer);
     const wrap = h("div", "lwrap"), top = h("div", "ltop"), tabs = h("div", "tabs"), body = h("div", null);
-    const close = h("button", "close", "Close"); close.onclick = () => { ov.remove(); document.body.style.overflow = ""; };
+    const close = h("button", "close", "Close"); close.onclick = () => { stopAll(); ov.remove(); document.body.style.overflow = ""; };
     const T = [[prayer, () => prayerTab(prayer)], ["How to pray", howTab], ["Wudu", wuduTab], ["Surahs", surahTab]];
-    const show = idx => { [...tabs.children].forEach((b, j) => b.setAttribute("aria-selected", String(j === idx))); body.replaceChildren(T[idx][1]()); body.style.display = "flex"; body.style.flexDirection = "column"; body.style.gap = "12px"; ov.scrollTop = 0; };
+    const show = idx => { stopAll(); [...tabs.children].forEach((b, j) => b.setAttribute("aria-selected", String(j === idx))); body.replaceChildren(T[idx][1]()); body.style.display = "flex"; body.style.flexDirection = "column"; body.style.gap = "12px"; ov.scrollTop = 0; };
     T.forEach(([name], idx) => { const b = h("button", null, esc(name)); b.setAttribute("role", "tab"); b.onclick = () => show(idx); tabs.append(b); });
     top.append(tabs, close); wrap.append(top, body); ov.append(wrap);
     document.body.append(ov); document.body.style.overflow = "hidden"; show(0); close.focus();

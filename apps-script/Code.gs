@@ -7,7 +7,7 @@
  */
 
 // Change these passwords before you deploy. Each child signs in with their own name + password.
-// "Dad" sees both children and can remove a wrong entry. "Mom" sees both children (view only).
+// "Dad" and "Mom" see both children and can mark a prayer for a child. Only Dad can remove old entries.
 const ACCOUNTS = {
   Yousuf: 'yousuf-CHANGE-ME',
   Eva:    'eva-CHANGE-ME',
@@ -16,7 +16,7 @@ const ACCOUNTS = {
 };
 
 const ADMIN = 'Dad';          // can remove wrong entries
-const VIEWERS = ['Dad', 'Mom']; // see both children
+const VIEWERS = ['Dad', 'Mom']; // see both children and can mark prayers for them
 const KIDS = ['Yousuf', 'Eva'];
 const PRAYERS = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 const LOG_SHEET = 'Log';
@@ -40,20 +40,24 @@ function doGet(e) {
   if (action === 'login') return out_({ ok: true, user: user, admin: isAdmin, viewAll: seesAll, kids: KIDS });
 
   if (action === 'add' || action === 'undo' || action === 'remove') {
-    if (seesAll && !isAdmin) return out_({ ok: false, error: 'bad', message: 'This account can only view.' });
-    const child = isAdmin ? p.child : user;          // a child can only act for themselves
+    const child = seesAll ? p.child : user;          // a child can only act for themselves; parents choose the child
     if (KIDS.indexOf(child) < 0) return out_({ ok: false, error: 'bad', message: 'Unknown child.' });
     if (action !== 'remove' && PRAYERS.indexOf(p.prayer) < 0) return out_({ ok: false, error: 'bad', message: 'Unknown prayer.' });
-    if (action === 'add' && isAdmin) return out_({ ok: false, error: 'bad', message: 'Only the child can confirm a prayer.' });
     if (action === 'remove' && !isAdmin) return out_({ ok: false, error: 'bad', message: 'Only Dad can remove entries.' });
 
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
     try {
       if (action === 'add') {
-        const now = new Date();
-        sh.appendRow([now, child, p.prayer]);
-        return out_({ ok: true, at: now.getTime() });
+        // parents may give the real prayer time (within the last 36 hours); children always use "now"
+        let at = Date.now();
+        if (seesAll && p.at) {
+          const t = Number(p.at);
+          if (!(t > Date.now() - 36 * 3600e3 && t <= Date.now() + 60e3)) return out_({ ok: false, error: 'bad', message: 'That time is too far away.' });
+          at = t;
+        }
+        sh.appendRow([new Date(at), child, p.prayer, user]);
+        return out_({ ok: true, at: at });
       }
       const last = sh.getLastRow();
       if (last < 2) return out_({ ok: false, error: 'none', message: 'Nothing to remove.' });
@@ -86,9 +90,9 @@ function doGet(e) {
   // list: rows since a time (ms). Children only receive their own rows.
   const since = Number(p.since || 0);
   const last = sh.getLastRow();
-  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 3).getValues()
+  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 4).getValues()
     .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (seesAll || r[1] === user))
-    .map(r => [r[0].getTime(), String(r[1]), String(r[2])]);
+    .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1])]);
   return out_({ ok: true, user: user, admin: isAdmin, viewAll: seesAll, rows: rows, now: Date.now() });
 }
 
@@ -97,7 +101,7 @@ function logSheet_() {
   let sh = ss.getSheetByName(LOG_SHEET);
   if (!sh) {
     sh = ss.insertSheet(LOG_SHEET);
-    sh.appendRow(['Timestamp', 'Child', 'Prayer']);
+    sh.appendRow(['Timestamp', 'Child', 'Prayer', 'Marked by']);
     sh.getRange('A:A').setNumberFormat('ddd mmm d yyyy, h:mm am/pm');
     sh.setFrozenRows(1);
   }
