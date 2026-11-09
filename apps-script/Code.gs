@@ -1,3 +1,4 @@
+/** @OnlyCurrentDoc */
 /**
  * Family prayer check-in – Google Apps Script.
  * Paste into the family sheet: Extensions → Apps Script → replace everything → Save → Deploy.
