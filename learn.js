@@ -145,9 +145,16 @@
   }
   // Real human recordings of the prayer phrases (no synthetic voice). Files live in /audio and are
   // listed here once added, e.g. takbir: "audio/takbir.m4a". A Listen button only appears for listed files.
+  // Recorded by Dad (Voice Memos), stored in the family Google Drive folder "Prayer recordings".
+  const drive = id => `https://drive.google.com/uc?export=download&id=${id}`;
   const RECORDINGS = {
-    // takbir: "audio/takbir.m4a", ruku: "audio/ruku.m4a", rising: "audio/rising.m4a", sujud: "audio/sujud.m4a",
-    // jalsa: "audio/jalsa.m4a", salam: "audio/salam.m4a", tashahhud: "audio/tashahhud.m4a", salawat: "audio/salawat.m4a",
+    takbir: drive("17KLXK10J4G8MiMbrPzg4KLmJCgGfe9hk"),
+    ruku: drive("1vxTKWlRAbbDy8-O-1QgfeAgUGrkj3nM4"),
+    rising: drive("1SvejdiIplgHknQfXYR9gu17bBr3e6RqB"),
+    sujud: drive("1QLXrruVcdTnVuvDmv9EF61GWjxS4NbRn"),
+    jalsa: drive("1IMbBtXFOP7wLhMxkNBRZYiTMEeI1D5qP"),
+    salam: drive("16eGIqIMdOIdwOEti3gqbCP5SRpBYzB08"),
+    // tashahhud: drive("…"), salawat: drive("…"),   ← add when recorded
   };
   function playFile(btn, url) {
     if (playingBtn === btn) { stopAll(); return; }
