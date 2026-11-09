@@ -103,7 +103,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
 
   <section class="panel" id="login" hidden>
     <h2>Sign in</h2>
-    <label for="who">Name<select id="who"><option>Yousuf</option><option>Eva</option><option>Dad</option></select></label>
+    <label for="who">Name<select id="who"><option>Yousuf</option><option>Eva</option><option>Dad</option><option>Mom</option></select></label>
     <label for="pass">Password<input id="pass" type="password" autocomplete="current-password"></label>
     <button class="primary" id="loginbtn">Sign in</button>
     <div class="status" id="loginstatus" role="status"></div>
@@ -281,10 +281,11 @@ function render() {
   $("logout").hidden = !signedIn;
   if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
 
-  const admin = session.admin;
+  const admin = !!(session.viewAll || session.admin);   // family view (Dad or Mom)
+  const canRemove = !!session.admin;                      // only Dad removes entries
   const kid = admin ? sel : session.user;
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
-  $("whoami").textContent = "Signed in as " + session.user + (admin ? " (admin)" : "") + ".";
+  $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (view only)" : "") + ".";
 
   // header / kid switch
   const hello = $("hello"); hello.replaceChildren();
@@ -313,7 +314,7 @@ function render() {
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
       right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + fmtT(done.at) + " · +" + pts(done.points)));
-      if (admin || now - done.at < UNDO_MINUTES * 60000) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
+      if (canRemove || (!admin && now - done.at < UNDO_MINUTES * 60000)) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
     } else if (now < w.start) {
       right.append(el("span", "chip", "Opens " + fmtT(w.start)));
     } else if (admin) {
@@ -355,7 +356,7 @@ function render() {
     const it = el("div", "hitem"), w = el("div", "what");
     w.append(el("div", null, (admin ? e.child + " · " : "") + e.prayer + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at)));
     const r = el("div", "right"); r.append(el("span", "chip " + (e.key === "ontime" ? "ok" : e.points ? "late" : ""), "+" + pts(e.points)));
-    if (admin) { const u = el("button", "ghost", "Remove"); u.onclick = () => undo(e, u); r.append(u); }
+    if (canRemove) { const u = el("button", "ghost", "Remove"); u.onclick = () => undo(e, u); r.append(u); }
     it.append(w, r); hl.append(it);
   });
 }
@@ -367,7 +368,7 @@ $("loginbtn").onclick = async () => {
   if (!CONFIG.scriptUrl.startsWith("https://")) { $("loginstatus").className = "status err"; $("loginstatus").textContent = "This page isn't connected to the family sheet yet."; return; }
   try {
     const j = await api({ user, pass, action: "login" });
-    session = { user, pass, admin: !!j.admin }; store.set("session", session);
+    session = { user, pass, admin: !!j.admin, viewAll: !!j.viewAll }; store.set("session", session);
     $("pass").value = ""; $("loginstatus").textContent = ""; loaded = false; render(); load();
   } catch (e) { $("loginstatus").className = "status err"; $("loginstatus").textContent = e.message; }
 };
@@ -380,7 +381,7 @@ $("monthtoggle").onclick = () => { showLastMonth = !showLastMonth; render(); };
   if (h.get("u") && h.get("k")) {
     history.replaceState(null, "", location.pathname + location.search);   // hide the password from the address bar
     try { const j = await api({ user: h.get("u"), pass: h.get("k"), action: "login" });
-      session = { user: h.get("u"), pass: h.get("k"), admin: !!j.admin }; store.set("session", session); }
+      session = { user: h.get("u"), pass: h.get("k"), admin: !!j.admin, viewAll: !!j.viewAll }; store.set("session", session); }
     catch (e) { $("loginstatus").className = "status err"; $("loginstatus").textContent = "This personal link didn't work: " + e.message; }
   }
   render(); load();

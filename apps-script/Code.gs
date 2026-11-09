@@ -7,14 +7,16 @@
  */
 
 // Change these passwords before you deploy. Each child signs in with their own name + password.
-// "Dad" is the admin: sees both children and can remove a wrong entry.
+// "Dad" sees both children and can remove a wrong entry. "Mom" sees both children (view only).
 const ACCOUNTS = {
   Yousuf: 'yousuf-CHANGE-ME',
   Eva:    'eva-CHANGE-ME',
   Dad:    'dad-CHANGE-ME',
+  Mom:    'mom-CHANGE-ME',
 };
 
-const ADMIN = 'Dad';
+const ADMIN = 'Dad';          // can remove wrong entries
+const VIEWERS = ['Dad', 'Mom']; // see both children
 const KIDS = ['Yousuf', 'Eva'];
 const PRAYERS = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 const LOG_SHEET = 'Log';
@@ -31,12 +33,14 @@ function doGet(e) {
     return out_({ ok: false, error: 'login', message: 'Wrong name or password.' });
   }
   const isAdmin = user === ADMIN;
+  const seesAll = VIEWERS.indexOf(user) >= 0;
   const sh = logSheet_();
   const action = p.action || 'list';
 
-  if (action === 'login') return out_({ ok: true, user: user, admin: isAdmin, kids: KIDS });
+  if (action === 'login') return out_({ ok: true, user: user, admin: isAdmin, viewAll: seesAll, kids: KIDS });
 
   if (action === 'add' || action === 'undo' || action === 'remove') {
+    if (seesAll && !isAdmin) return out_({ ok: false, error: 'bad', message: 'This account can only view.' });
     const child = isAdmin ? p.child : user;          // a child can only act for themselves
     if (KIDS.indexOf(child) < 0) return out_({ ok: false, error: 'bad', message: 'Unknown child.' });
     if (action !== 'remove' && PRAYERS.indexOf(p.prayer) < 0) return out_({ ok: false, error: 'bad', message: 'Unknown prayer.' });
@@ -83,9 +87,9 @@ function doGet(e) {
   const since = Number(p.since || 0);
   const last = sh.getLastRow();
   const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 3).getValues()
-    .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (isAdmin || r[1] === user))
+    .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (seesAll || r[1] === user))
     .map(r => [r[0].getTime(), String(r[1]), String(r[2])]);
-  return out_({ ok: true, user: user, admin: isAdmin, rows: rows, now: Date.now() });
+  return out_({ ok: true, user: user, admin: isAdmin, viewAll: seesAll, rows: rows, now: Date.now() });
 }
 
 function logSheet_() {
