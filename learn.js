@@ -69,27 +69,27 @@
       tr: ["Qul a'udhu bi Rabbin-nas", "Malikin-nas", "Ilahin-nas", "Min sharril-waswasil-khannas", "Alladhi yuwaswisu fi sudurin-nas", "Minal-jinnati wan-nas"],
       en: ["Say: I seek protection with the Lord of people,", "the King of people,", "the God of people,", "from the harm of the whisperer who hides,", "who whispers into people's hearts,", "from among jinn and people."] },
   ];
-  const TASHAHHUD = { // Maliki: the wording taught by Umar ibn al-Khattab (Muwatta of Imam Malik)
+  const TASHAHHUD = { rec: "tashahhud", // Maliki: the wording taught by Umar ibn al-Khattab (Muwatta of Imam Malik)
     ar: "التَّحِيَّاتُ لِلَّهِ، الزَّاكِيَاتُ لِلَّهِ، الطَّيِّبَاتُ الصَّلَوَاتُ لِلَّهِ، السَّلَامُ عَلَيْكَ أَيُّهَا النَّبِيُّ وَرَحْمَةُ اللَّهِ وَبَرَكَاتُهُ، السَّلَامُ عَلَيْنَا وَعَلَى عِبَادِ اللَّهِ الصَّالِحِينَ، أَشْهَدُ أَنْ لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ",
     tr: "At-tahiyyatu lillah, az-zakiyatu lillah, at-tayyibatus-salawatu lillah. As-salamu 'alayka ayyuhan-nabiyyu wa rahmatullahi wa barakatuh. As-salamu 'alayna wa 'ala 'ibadillahis-saliheen. Ash-hadu an la ilaha illallahu wahdahu la sharika lah, wa ash-hadu anna Muhammadan 'abduhu wa rasuluh.",
     en: "All greetings are for Allah, all pure deeds are for Allah, all good words and prayers are for Allah. Peace be upon you, O Prophet, and Allah's mercy and blessings. Peace be upon us and on Allah's good servants. I bear witness that there is no god but Allah, alone with no partner, and that Muhammad is His servant and messenger.",
   };
-  const SALAWAT = {
+  const SALAWAT = { rec: "salawat",
     ar: "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ إِنَّكَ حَمِيدٌ مَجِيدٌ، اللَّهُمَّ بَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ إِنَّكَ حَمِيدٌ مَجِيدٌ",
     tr: "Allahumma salli 'ala Muhammadin wa 'ala ali Muhammad, kama sallayta 'ala Ibrahima wa 'ala ali Ibrahim, innaka Hameedun Majeed. Allahumma barik 'ala Muhammadin wa 'ala ali Muhammad, kama barakta 'ala Ibrahima wa 'ala ali Ibrahim, innaka Hameedun Majeed.",
     en: "O Allah, send prayers on Muhammad and his family, as You sent prayers on Ibrahim and his family; You are Praiseworthy, Glorious. O Allah, bless Muhammad and his family, as You blessed Ibrahim and his family; You are Praiseworthy, Glorious.",
   };
 
   const STEPS = [
-    { pose: "takbir", sayAr: "اللَّهُ أَكْبَرُ", title: "Start: Takbir", say: "Allahu Akbar", text: "Face the qiblah. Make the intention in your heart for this prayer. Raise your hands to your shoulders and say “Allahu Akbar” (Allah is the Greatest). Hands are raised only at this first takbir." },
+    { pose: "takbir", rec: "takbir", sayAr: "اللَّهُ أَكْبَرُ", title: "Start: Takbir", say: "Allahu Akbar", text: "Face the qiblah. Make the intention in your heart for this prayer. Raise your hands to your shoulders and say “Allahu Akbar” (Allah is the Greatest). Hands are raised only at this first takbir." },
     { pose: "standing", playSurah: 1, title: "Stand and recite", say: "Al-Fatiha + a short surah", text: "Stand still with your arms resting at your sides (Maliki way). Recite Al-Fatiha. In the 1st and 2nd rak'ah, add a short surah after it (like Al-Ikhlas). In the 3rd and 4th rak'ah, only Al-Fatiha." },
-    { pose: "ruku", sayAr: "سُبْحَانَ رَبِّيَ الْعَظِيمِ، سُبْحَانَ رَبِّيَ الْعَظِيمِ، سُبْحَانَ رَبِّيَ الْعَظِيمِ", title: "Bow: Ruku'", say: "Subhana Rabbiyal-'Adheem ×3", text: "Say “Allahu Akbar” and bow. Hands on your knees, back straight." },
-    { pose: "rising", sayAr: "سَمِعَ اللَّهُ لِمَنْ حَمِدَهُ، رَبَّنَا وَلَكَ الْحَمْدُ", title: "Stand up again", say: "Sami'Allahu liman hamidah — Rabbana wa lakal-hamd", text: "Rise up straight while saying “Sami'Allahu liman hamidah” (Allah hears those who praise Him), then “Rabbana wa lakal-hamd” (Our Lord, all praise is Yours). Behind an imam, only say “Rabbana wa lakal-hamd”." },
-    { pose: "sujud", sayAr: "سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى", title: "Prostrate: Sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and go down. Forehead and nose, both palms, both knees and your toes touch the ground." },
-    { pose: "sitting", sayAr: "رَبِّ اغْفِرْ لِي", title: "Sit for a moment", say: "Rabbighfir li", text: "Say “Allahu Akbar” and sit up. Say “Rabbighfir li” (My Lord, forgive me)." },
-    { pose: "sujud", sayAr: "سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى", title: "Second sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and prostrate again, the same way. That finishes one rak'ah. Say “Allahu Akbar” and stand up for the next one." },
+    { pose: "ruku", rec: "ruku", sayAr: "سُبْحَانَ رَبِّيَ الْعَظِيمِ، سُبْحَانَ رَبِّيَ الْعَظِيمِ، سُبْحَانَ رَبِّيَ الْعَظِيمِ", title: "Bow: Ruku'", say: "Subhana Rabbiyal-'Adheem ×3", text: "Say “Allahu Akbar” and bow. Hands on your knees, back straight." },
+    { pose: "rising", rec: "rising", sayAr: "سَمِعَ اللَّهُ لِمَنْ حَمِدَهُ، رَبَّنَا وَلَكَ الْحَمْدُ", title: "Stand up again", say: "Sami'Allahu liman hamidah — Rabbana wa lakal-hamd", text: "Rise up straight while saying “Sami'Allahu liman hamidah” (Allah hears those who praise Him), then “Rabbana wa lakal-hamd” (Our Lord, all praise is Yours). Behind an imam, only say “Rabbana wa lakal-hamd”." },
+    { pose: "sujud", rec: "sujud", sayAr: "سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى", title: "Prostrate: Sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and go down. Forehead and nose, both palms, both knees and your toes touch the ground." },
+    { pose: "sitting", rec: "jalsa", sayAr: "رَبِّ اغْفِرْ لِي", title: "Sit for a moment", say: "Rabbighfir li", text: "Say “Allahu Akbar” and sit up. Say “Rabbighfir li” (My Lord, forgive me)." },
+    { pose: "sujud", rec: "sujud", sayAr: "سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى، سُبْحَانَ رَبِّيَ الْأَعْلَى", title: "Second sujud", say: "Subhana Rabbiyal-A'la ×3", text: "Say “Allahu Akbar” and prostrate again, the same way. That finishes one rak'ah. Say “Allahu Akbar” and stand up for the next one." },
     { pose: "tashahhud", playText: "tashahhud", title: "Sit for Tashahhud", say: "At-Tahiyyat…", text: "After the 2nd rak'ah, and at the end of the prayer, sit and say At-Tahiyyat. Close your right hand and move your index finger gently from side to side (Maliki way). In the last sitting, add the Salawat on the Prophet ﷺ." },
-    { pose: "salam", sayAr: "السَّلَامُ عَلَيْكُمْ", title: "Finish: Salam", say: "As-salamu 'alaykum", text: "Say “As-salamu 'alaykum” once while turning your head to the right (Maliki way). Your prayer is complete!" },
+    { pose: "salam", rec: "salam", sayAr: "السَّلَامُ عَلَيْكُمْ", title: "Finish: Salam", say: "As-salamu 'alaykum", text: "Say “As-salamu 'alaykum” once while turning your head to the right (Maliki way). Your prayer is complete!" },
   ];
 
   const WUDU = [
@@ -111,37 +111,63 @@
   // Phrases & Tashahhud: the device's Arabic voice (text-to-speech), not a human reciter.
   const pad3 = n => String(n).padStart(3, "0");
   const ayahUrl = (sura, ayah) => `https://everyayah.com/data/Alafasy_128kbps/${pad3(sura)}${pad3(ayah)}.mp3`;
-  let player = null, playingBtn = null, queue = [];
+  // One shared <audio> element: iPhone/iPad only allow sound on an element that a tap has started,
+  // so we keep reusing it (change src) instead of creating a new player for every verse.
+  const player = new Audio(); player.preload = "auto"; player.setAttribute("playsinline", "");
+  let playingBtn = null, queue = [], playToken = 0;
   function stopAll() {
-    if (player) { player.onended = null; player.pause(); player = null; }
-    queue = []; try { speechSynthesis.cancel(); } catch (e) {}
+    playToken++; queue = [];
+    player.onended = null; player.onerror = null;
+    try { player.pause(); } catch (e) {}
+    try { if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); } catch (e) {}
     if (playingBtn) { playingBtn.textContent = playingBtn.dataset.label; playingBtn.classList.remove("on"); playingBtn = null; }
   }
   function markBtn(btn) { stopAll(); playingBtn = btn; btn.dataset.label = btn.dataset.label || btn.textContent; btn.textContent = "■ Stop"; btn.classList.add("on"); }
   function playAyahs(btn, sura, list) {
     if (playingBtn === btn) { stopAll(); return; }
-    markBtn(btn); queue = list.slice();
+    markBtn(btn); queue = list.slice(); const token = playToken;
     const next = () => {
+      if (token !== playToken) return;
       if (!queue.length) { stopAll(); return; }
-      player = new Audio(ayahUrl(sura, queue.shift()));
+      player.src = ayahUrl(sura, queue.shift());
       player.onended = next;
-      player.onerror = () => { stopAll(); alertNote(btn, "Couldn't load the recitation. Check the internet."); };
-      player.play().catch(() => { stopAll(); alertNote(btn, "Tap again to play."); });
+      player.onerror = () => { if (token === playToken) { stopAll(); alertNote(btn, "Couldn't load the recitation. Check the internet."); } };
+      const pr = player.play();                       // first call runs inside the tap, which unlocks audio on iOS
+      if (pr && pr.catch) pr.catch(() => { if (token === playToken) { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
     };
     next();
   }
+  // Real human recordings of the prayer phrases (no synthetic voice). Files live in /audio and are
+  // listed here once added, e.g. takbir: "audio/takbir.m4a". A Listen button only appears for listed files.
+  const RECORDINGS = {
+    // takbir: "audio/takbir.m4a", ruku: "audio/ruku.m4a", rising: "audio/rising.m4a", sujud: "audio/sujud.m4a",
+    // jalsa: "audio/jalsa.m4a", salam: "audio/salam.m4a", tashahhud: "audio/tashahhud.m4a", salawat: "audio/salawat.m4a",
+  };
+  function playFile(btn, url) {
+    if (playingBtn === btn) { stopAll(); return; }
+    markBtn(btn); const token = playToken;
+    player.src = url; player.onended = () => { if (token === playToken) stopAll(); };
+    player.onerror = () => { if (token === playToken) { stopAll(); alertNote(btn, "Couldn't load the recording."); } };
+    const pr = player.play();
+    if (pr && pr.catch) pr.catch(() => { if (token === playToken) { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
+  }
   let arVoice = null;
-  function pickVoice() { try { const vs = speechSynthesis.getVoices(); arVoice = vs.find(v => /^ar/i.test(v.lang)) || null; } catch (e) {} }
-  try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
+  function pickVoice() { try { const vs = speechSynthesis.getVoices(); arVoice = vs.find(v => /^ar[-_]?/i.test(v.lang)) || null; } catch (e) {} }
+  try { pickVoice(); speechSynthesis.addEventListener ? speechSynthesis.addEventListener("voiceschanged", pickVoice) : (speechSynthesis.onvoiceschanged = pickVoice); } catch (e) {}
   function speak(btn, text) {
     if (playingBtn === btn) { stopAll(); return; }
     if (!("speechSynthesis" in window)) { alertNote(btn, "This device can't read text aloud."); return; }
-    pickVoice();
-    if (!arVoice) { alertNote(btn, "No Arabic voice on this device. On iPad: Settings › Accessibility › Spoken Content › Voices › Arabic."); return; }
-    markBtn(btn);
-    const u = new SpeechSynthesisUtterance(text); u.lang = arVoice.lang; u.voice = arVoice; u.rate = 0.75;
+    markBtn(btn); pickVoice();
+    // iPhone/iPad often list no voices to web pages; asking for Arabic by language still uses the built-in Arabic voice.
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = arVoice ? arVoice.lang : "ar-SA"; if (arVoice) u.voice = arVoice; u.rate = 0.8;
+    let started = false;
+    u.onstart = () => { started = true; };
     u.onend = () => { if (playingBtn === btn) stopAll(); };
-    speechSynthesis.speak(u);
+    u.onerror = () => { if (playingBtn === btn) { stopAll(); alertNote(btn, "Couldn't read this aloud. On iPhone/iPad add an Arabic voice: Settings › Accessibility › Spoken Content › Voices › Arabic."); } };
+    try { speechSynthesis.resume(); } catch (e) {}
+    speechSynthesis.speak(u);                         // must run directly inside the tap
+    setTimeout(() => { if (!started && playingBtn === btn) { stopAll(); alertNote(btn, "No sound? Turn off silent mode, raise the volume, and check an Arabic voice is installed (Settings › Accessibility › Spoken Content › Voices)."); } }, 4000);
   }
   function alertNote(btn, msg) { const n = h("div", "audnote", esc(msg)); btn.insertAdjacentElement("afterend", n); setTimeout(() => n.remove(), 6000); }
   const playBtn = (label, cls) => { const b = h("button", "playb" + (cls ? " " + cls : ""), esc(label)); b.type = "button"; return b; };
@@ -201,14 +227,14 @@
   }
   function howTab() {
     const box = h("div", "lcol");
-    box.append(h("p", "tip", "Tap ▶ Listen to hear how to say it. Qur'an recitation: Sheikh Mishary Alafasy. Other phrases are read by the device's Arabic voice. Every rak'ah has the same moves. Follow the pictures from top to bottom. This guide follows the Maliki school."));
+    box.append(h("p", "tip", "Tap ▶ to hear the Qur'an recited by Sheikh Mishary Alafasy. Every rak'ah has the same moves. Follow the pictures from top to bottom. This guide follows the Maliki school."));
     STEPS.forEach((s, k) => {
       const st = h("div", "step");
       st.innerHTML = `${fig(s.pose)}<div><h3>${k + 1}. ${esc(s.title)}</h3><p>${esc(s.text)}</p><span class="say">${esc(s.say)}</span></div>`;
       const col = st.lastElementChild;
-      if (s.sayAr) { const b = playBtn("▶ Listen"); b.onclick = () => speak(b, s.sayAr); col.append(b); }
+      if (s.rec && RECORDINGS[s.rec]) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS[s.rec]); col.append(b); }
       if (s.playSurah) { const b = playBtn("▶ Listen to Al-Fatiha"); b.onclick = () => playAyahs(b, 1, [1, 2, 3, 4, 5, 6, 7]); col.append(b); }
-      if (s.playText === "tashahhud") { const b = playBtn("▶ Listen"); b.onclick = () => speak(b, TASHAHHUD.ar); col.append(b); }
+      if (s.playText === "tashahhud" && RECORDINGS.tashahhud) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS.tashahhud); col.append(b); }
       box.append(st);
     });
     box.append(textBlock("Tashahhud (At-Tahiyyat)", TASHAHHUD), textBlock("Salawat on the Prophet ﷺ (last sitting)", SALAWAT));
@@ -218,7 +244,7 @@
     const d = h("div", "surah");
     d.append(h("h3", null, esc(title)));
     const a = h("div", "ayah"); a.innerHTML = `<div class="ar">${t.ar}</div><div class="tr">${esc(t.tr)}</div><div class="en">${esc(t.en)}</div>`;
-    const b = playBtn("▶ Listen"); b.onclick = () => speak(b, t.ar); a.append(b);
+    if (t.rec && RECORDINGS[t.rec]) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS[t.rec]); a.append(b); }
     d.append(a); return d;
   }
   function wuduTab() {
