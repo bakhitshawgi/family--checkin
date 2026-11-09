@@ -146,18 +146,17 @@
   // Real human recordings of the prayer phrases (no synthetic voice). Files live in /audio and are
   // listed here once added, e.g. takbir: "audio/takbir.m4a". A Listen button only appears for listed files.
   // Recorded by Dad (Voice Memos), stored in the family Google Drive folder "Prayer recordings".
-  // Each recording is tried in order: a file uploaded to this GitHub repo (same site, plays everywhere,
-  // including iPhone), then the Google Drive copy as a fallback.
-  const drive = (name, id) => [name + ".mp4", "audio/" + name + ".mp4", name + ".m4a", "audio/" + name + ".m4a", `https://drive.google.com/uc?export=download&id=${id}`];
+  // Dad's recordings, uploaded to this GitHub repo (same site, so they play on iPhone/iPad too).
+  // Exact file names only: on iPhone a second attempt after a failed one is no longer "part of the tap" and gets blocked.
   const RECORDINGS = {
-    takbir: drive("takbir", "17KLXK10J4G8MiMbrPzg4KLmJCgGfe9hk"),
-    ruku: drive("ruku", "1vxTKWlRAbbDy8-O-1QgfeAgUGrkj3nM4"),
-    rising: drive("rising", "1SvejdiIplgHknQfXYR9gu17bBr3e6RqB"),
-    sujud: drive("sujud", "1QLXrruVcdTnVuvDmv9EF61GWjxS4NbRn"),
-    jalsa: drive("jalsa", "1IMbBtXFOP7wLhMxkNBRZYiTMEeI1D5qP"),
-    salam: drive("salam", "16eGIqIMdOIdwOEti3gqbCP5SRpBYzB08"),
-    tashahhud: ["tashahhud.mp4", "tashahhud.m4a"],     // if not uploaded yet, the device's Arabic voice is used
-    // salawat: drive("salawat", "<drive id>"),   ← add when recorded
+    takbir: "takbir.mp4",
+    ruku: "ruku.mp4",
+    rising: "rising.mp4",
+    sujud: "sujud.mp4",
+    jalsa: "jalsa.mp4",
+    salam: "salam.mp4",
+    tashahhud: "tashahhud.m4a",
+    // salawat: "salawat.m4a",   ← add when recorded
   };
   function playFile(btn, urls, fallback) {
     if (playingBtn === btn) { stopAll(); return; }
