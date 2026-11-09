@@ -135,6 +135,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
   <p class="foot"><span id="whoami"></span> <button id="logout" hidden>Sign out</button></p>
 </div>
 
+<script src="learn.js"></script>
 <script>
 /* ===== Settings ===== */
 const CONFIG = { scriptUrl: "https://script.google.com/macros/s/AKfycbwUy58Rh6waff-ylUi3tFNydKCKtES9JDuwuaFN-JAzCMw2luEi7tuwmQqhSPRwVnKg5g/exec" };      // Google Apps Script web-app URL (…/exec)
@@ -311,6 +312,7 @@ function render() {
     const w = windowFor(p, tp), row = el("div", "prow"), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
     tx.append(el("div", "pname", p), el("div", "ptime", fmtT(w.start) + " – " + (p === "Isha" ? "midnight" : fmtT(w.end))));
     left.append(icon(p.toLowerCase(), "picon"), tx);
+    if (window.openLearn) { const lb = el("button", "learnbtn"); lb.innerHTML = window.LEARN_BOOK_ICON; lb.setAttribute("aria-label", "Learn " + p); lb.title = "Learn how to pray " + p; lb.onclick = () => window.openLearn(p); left.append(lb); }
     const done = entries.find(e => e.child === kid && e.day === today && e.prayer === p && (e.key === "ontime" || e.key === "late" || e.key === "verylate"));
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
