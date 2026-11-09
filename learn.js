@@ -146,23 +146,31 @@
   // Real human recordings of the prayer phrases (no synthetic voice). Files live in /audio and are
   // listed here once added, e.g. takbir: "audio/takbir.m4a". A Listen button only appears for listed files.
   // Recorded by Dad (Voice Memos), stored in the family Google Drive folder "Prayer recordings".
-  const drive = id => `https://drive.google.com/uc?export=download&id=${id}`;
+  // Each recording is tried in order: a file uploaded to this GitHub repo (same site, plays everywhere,
+  // including iPhone), then the Google Drive copy as a fallback.
+  const drive = (name, id) => [name + ".mp4", "audio/" + name + ".mp4", name + ".m4a", "audio/" + name + ".m4a", `https://drive.google.com/uc?export=download&id=${id}`];
   const RECORDINGS = {
-    takbir: drive("17KLXK10J4G8MiMbrPzg4KLmJCgGfe9hk"),
-    ruku: drive("1vxTKWlRAbbDy8-O-1QgfeAgUGrkj3nM4"),
-    rising: drive("1SvejdiIplgHknQfXYR9gu17bBr3e6RqB"),
-    sujud: drive("1QLXrruVcdTnVuvDmv9EF61GWjxS4NbRn"),
-    jalsa: drive("1IMbBtXFOP7wLhMxkNBRZYiTMEeI1D5qP"),
-    salam: drive("16eGIqIMdOIdwOEti3gqbCP5SRpBYzB08"),
+    takbir: drive("takbir", "17KLXK10J4G8MiMbrPzg4KLmJCgGfe9hk"),
+    ruku: drive("ruku", "1vxTKWlRAbbDy8-O-1QgfeAgUGrkj3nM4"),
+    rising: drive("rising", "1SvejdiIplgHknQfXYR9gu17bBr3e6RqB"),
+    sujud: drive("sujud", "1QLXrruVcdTnVuvDmv9EF61GWjxS4NbRn"),
+    jalsa: drive("jalsa", "1IMbBtXFOP7wLhMxkNBRZYiTMEeI1D5qP"),
+    salam: drive("salam", "16eGIqIMdOIdwOEti3gqbCP5SRpBYzB08"),
     // tashahhud: drive("…"), salawat: drive("…"),   ← add when recorded
   };
-  function playFile(btn, url) {
+  function playFile(btn, urls) {
     if (playingBtn === btn) { stopAll(); return; }
-    markBtn(btn); const token = playToken;
-    player.src = url; player.onended = () => { if (token === playToken) stopAll(); };
-    player.onerror = () => { if (token === playToken) { stopAll(); alertNote(btn, "Couldn't load the recording."); } };
-    const pr = player.play();
-    if (pr && pr.catch) pr.catch(err => { if (token === playToken && err && err.name === "NotAllowedError") { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
+    markBtn(btn); const token = playToken; const list = [].concat(urls); let i = 0;
+    const tryNext = () => {
+      if (token !== playToken) return;
+      if (i >= list.length) { stopAll(); alertNote(btn, "Couldn't play the recording."); return; }
+      player.src = list[i++];
+      const pr = player.play();
+      if (pr && pr.catch) pr.catch(err => { if (token !== playToken) return; if (err && err.name === "NotAllowedError") { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
+    };
+    player.onended = () => { if (token === playToken) stopAll(); };
+    player.onerror = tryNext;
+    tryNext();
   }
   let arVoice = null;
   function pickVoice() { try { const vs = speechSynthesis.getVoices(); arVoice = vs.find(v => /^ar[-_]?/i.test(v.lang)) || null; } catch (e) {} }
