@@ -224,8 +224,9 @@ let entries = [], loaded = false, sel = store.get("selkid") || "Yousuf", showLas
 async function api(params) {
   const u = new URL(CONFIG.scriptUrl);
   Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
-  const r = await fetch(u.toString(), { redirect: "follow" });
-  const j = await r.json();
+  let j;
+  try { const r = await fetch(u.toString(), { redirect: "follow" }); j = await r.json(); }
+  catch (e) { const err = new Error("Can't reach the family sheet. Check the internet, or the script deployment (access must be Anyone)."); err.code = "net"; throw err; }
   if (!j.ok) { const err = new Error(j.message || "Something went wrong"); err.code = j.error; throw err; }
   return j;
 }
