@@ -138,7 +138,9 @@ function cfg(){const c=store.get("formcfg");return CONFIG.formUrl.startsWith("ht
 function todayKey(){const [y,m,d]=PT.todayParts(new Date());return y+"-"+m+"-"+d}
 function todayTimes(){const [y,m,d]=PT.todayParts(new Date());return PT.times(y,m,d,false)}
 function windowOf(p,t){const k=p.toLowerCase();const start=t[k];let end;
-  if(NEXT_END[p])end=t[NEXT_END[p]];else{const [y,m,d]=PT.todayParts(new Date());end=new Date(PT.times(y,m,d+1,false).fajr.getTime()-6*3600e3);end=new Date(Math.min(end.getTime(),start.getTime()+6*3600e3));}
+  if(NEXT_END[p])end=t[NEXT_END[p]];else{/* Isha counts as on time until midnight (Toronto), same as the sheet */
+    const hh=+new Intl.DateTimeFormat("en-GB",{timeZone:PT.TZ,hour:"2-digit",hour12:false}).format(start),mm=+new Intl.DateTimeFormat("en-GB",{timeZone:PT.TZ,minute:"2-digit"}).format(start);
+    end=new Date(start.getTime()+((24*60-hh*60-mm)*60-1)*1000);}
   return{start,end}}
 let sel=store.get("selkid")||"Yousuf";
 function sentToday(){const s=store.get("sent")||{};return s[todayKey()]||{}}
