@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Prayers">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<title>Prayers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef2f1; --surface:#ffffff; --fg:#17312e; --muted:#5d716e; --line:#d5dfdc;
+  --accent:#1f6f62; --accent-ink:#ffffff; --gold:#a8771f; --done:#2f7d4f; --done-bg:#e3f2e8; --wait-bg:#eef1f0;
+  --late:#b4483c; --late-bg:#f8e6e2; --sel:#d7ebe6;
+  --sun:#e09a2c; --moon:#5d6fb0; --skin:#e6b48e; --hair:#3b2a22; --boy:#2f6f9e; --boy-bg:#dbe8f2; --girl:#c0548a; --girl-bg:#f5e1eb; --bow:#e05a8f;
+  --display:"Young Serif",Georgia,serif; --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1c1b; --surface:#162826; --fg:#e4efec; --muted:#93a8a4; --line:#29403d;
+  --accent:#4fb3a1; --accent-ink:#0b1716; --gold:#e0b25c; --done:#6ccf93; --done-bg:#183626; --wait-bg:#1d302e;
+  --late:#ec8576; --late-bg:#3a201c; --sel:#1f3d38;
+  --sun:#f2c15a; --moon:#b7c3f2; --skin:#d9a57f; --hair:#2a1d17; --boy:#5ea3d6; --boy-bg:#1c3344; --girl:#e07fb0; --girl-bg:#3b2232; --bow:#f08ab3;
+  color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-direction:column;gap:2px}
+.eyebrow{font-size:13px;color:var(--gold);font-weight:600}
+h1{font-family:var(--display);font-weight:400;font-size:30px;line-height:1.15;margin:0}
+h2{font-family:var(--display);font-weight:400;font-size:20px;margin:0}
+.sub{color:var(--muted);margin:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.note{font-size:14px;color:var(--muted);margin:0}
+.kids{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kidbtn{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:var(--wait-bg);color:var(--fg);border:2px solid transparent;text-align:left;min-width:0;font:inherit;cursor:pointer}
+.kidbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--sel)}
+.kidbtn b{font-size:20px;font-family:var(--display);font-weight:400;display:block}
+.kidbtn span.count{font-size:13px;color:var(--muted)}
+.av{flex:none;width:48px;height:48px;display:block}.av svg,.picon svg{width:100%;height:100%;display:block}
+.rows{display:flex;flex-direction:column;gap:10px}
+.prow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:var(--wait-bg)}
+.prow.done{background:var(--done-bg)} .prow.late{background:var(--late-bg)}
+.pleft{display:flex;align-items:center;gap:12px;min-width:0}
+.picon{flex:none;width:40px;height:40px;color:var(--muted)}
+.prow.done .picon{color:var(--done)}
+.pname{font-weight:600;font-size:18px} .ptime{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;border-radius:10px;border:0;padding:10px 18px;font-weight:600}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.primary{background:var(--accent);color:var(--accent-ink);min-height:46px;min-width:110px}
+.primary.lateb{background:var(--late);color:#fff}
+.primary:disabled{opacity:.5;cursor:default}
+.chip{font-size:13px;font-weight:600;padding:5px 10px;border-radius:999px;white-space:nowrap;border:1px solid var(--line);color:var(--muted)}
+.chip.ok{color:var(--done);border-color:var(--done)} .chip.late{color:var(--late);border-color:var(--late)}
+.right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.status{font-size:15px;min-height:1.5em;font-weight:600;color:var(--done)} .status.err{color:var(--late)}
+input{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;min-width:0}
+label{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.foot{font-size:12px;color:var(--muted);text-align:center}
+.foot button{background:none;color:var(--muted);text-decoration:underline;padding:4px;font-weight:400}
+@media (prefers-reduced-motion:no-preference){.prow{transition:background .25s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Toronto · ISNA prayer times</div>
+    <h1>Who prayed?</h1>
+    <p class="sub" id="datestr"></p>
+    <p class="sub" id="nextline"></p>
+  </header>
+
+  <section class="panel" id="setup" hidden>
+    <h2>One-time setup</h2>
+    <p class="note">Paste the Google Form pre-filled link (choose Yousuf + Fajr, then copy the link). This connects the buttons to your sheet on this phone.</p>
+    <label for="prefill">Pre-filled link<input id="prefill" placeholder="https://docs.google.com/forms/d/e/…/viewform?…" autocomplete="off"></label>
+    <button class="primary" id="savesetup">Connect</button>
+    <div class="status" id="setupstatus" role="status"></div>
+  </section>
+
+  <section class="panel" id="main">
+    <div class="kids" id="kidbtns"></div>
+    <div class="rows" id="prows"></div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <p class="foot">Each tap is saved to the family sheet with the exact time. <button id="resetbtn">Setup</button></p>
+</div>
+
+<script>
+/* ---- Fill these in once (from the Google Form pre-filled link) ---- */
+const CONFIG = { formUrl: "__FORM_URL__", childEntry: "__CHILD_ENTRY__", prayerEntry: "__PRAYER_ENTRY__" };
+const KIDS=[{id:"Yousuf",kind:"boy"},{id:"Eva",kind:"girl"}];
+const PRAYERS=["Fajr","Dhuhr","Asr","Maghrib","Isha"];
+const NEXT_END={Fajr:"sunrise",Dhuhr:"asr",Asr:"maghrib",Maghrib:"isha"};
+
+const ICONS={
+fajr:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="10" cy="10" r="1.6" fill="var(--moon)"/><circle cx="38" cy="8" r="1.2" fill="var(--moon)"/><path d="M13 32a11 11 0 0 1 22 0z" fill="var(--sun)"/><path d="M24 13v4M13.4 18.4l2.8 2.8M34.6 18.4l-2.8 2.8M6 32h36M14 38h20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>',
+dhuhr:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="8.5" fill="var(--sun)"/><path d="M24 6v5M24 37v5M6 24h5M37 24h5M11.3 11.3l3.5 3.5M33.2 33.2l3.5 3.5M11.3 36.7l3.5-3.5M33.2 14.8l3.5-3.5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>',
+asr:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="30" cy="18" r="8" fill="var(--sun)"/><path d="M30 4v3M42 18h3M39.9 8.1l-2.1 2.1M20.1 8.1l2.1 2.1" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/><path d="M12 38h19a6 6 0 0 0 0-12 8.5 8.5 0 0 0-16-1.5A6.8 6.8 0 0 0 12 38z" fill="var(--surface)" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg>',
+maghrib:'<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M13 32a11 11 0 0 1 22 0z" fill="var(--sun)"/><path d="M24 5v9M20 10.5l4 4 4-4M6 32h36M14 38h20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+isha:'<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M27 7a17 17 0 1 0 15 25A13.5 13.5 0 1 1 27 7z" fill="var(--moon)"/><path d="M36 9l1.3 3 3 1.3-3 1.3-1.3 3-1.3-3-3-1.3 3-1.3z" fill="var(--sun)"/></svg>',
+boy:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="var(--boy-bg)"/><path d="M9 48a15 11 0 0 1 30 0z" fill="var(--boy)"/><circle cx="24" cy="23" r="10.5" fill="var(--skin)"/><path d="M13.3 22a10.7 10.7 0 0 1 21.4 0c-2.2-3.4-6.4-4.6-10.7-4.6S15.5 18.6 13.3 22z" fill="var(--hair)"/><circle cx="20" cy="24" r="1.3" fill="var(--hair)"/><circle cx="28" cy="24" r="1.3" fill="var(--hair)"/><path d="M20.5 28.3q3.5 2.6 7 0" stroke="var(--hair)" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>',
+girl:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="var(--girl-bg)"/><path d="M11.5 24c0-8 5.6-13 12.5-13s12.5 5 12.5 13v14h-25z" fill="var(--hair)"/><path d="M9 48a15 11 0 0 1 30 0z" fill="var(--girl)"/><circle cx="24" cy="23.5" r="10" fill="var(--skin)"/><path d="M14 22c2.5-5 6-6.6 10-6.6s7.5 1.6 10 6.6c-3.5-1.8-6.5-2.6-10-2.6s-6.5.8-10 2.6z" fill="var(--hair)"/><circle cx="33" cy="15.5" r="2.6" fill="var(--bow)"/><circle cx="37" cy="14" r="2.2" fill="var(--bow)"/><circle cx="20.2" cy="24.5" r="1.3" fill="var(--hair)"/><circle cx="27.8" cy="24.5" r="1.3" fill="var(--hair)"/><path d="M20.7 28.6q3.3 2.4 6.6 0" stroke="var(--hair)" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>'
+};
+
+const PT=(()=>{const LAT=43.6532,LNG=-79.3832,TZ="America/Toronto";
+const r=d=>d*Math.PI/180,g=x=>x*180/Math.PI,fa=a=>{a%=360;return a<0?a+360:a},fh=h=>{h%=24;return h<0?h+24:h};
+const sin=d=>Math.sin(r(d)),cos=d=>Math.cos(r(d)),tan=d=>Math.tan(r(d)),asin=x=>g(Math.asin(x)),acos=x=>g(Math.acos(x)),atan2=(y,x)=>g(Math.atan2(y,x)),acot=x=>g(Math.atan(1/x));
+function julian(y,m,d){if(m<=2){y-=1;m+=12}const A=Math.floor(y/100),B=2-A+Math.floor(A/4);return Math.floor(365.25*(y+4716))+Math.floor(30.6001*(m+1))+d+B-1524.5}
+function sun(jd){const D=jd-2451545,gg=fa(357.529+.98560028*D),q=fa(280.459+.98564736*D),L=fa(q+1.915*sin(gg)+.02*sin(2*gg)),e=23.439-3.6e-7*D;const RA=atan2(cos(e)*sin(L),cos(L))/15;return{decl:asin(sin(e)*sin(L)),eqt:q/15-fh(RA)}}
+function times(y,m,d,hanafi){const jd0=julian(y,m,d)-LNG/(15*24);
+ const mid=t=>fh(12-sun(jd0+t).eqt);
+ const ang=(a,t,ccw)=>{const s=sun(jd0+t),n=mid(t),T=acos((-sin(a)-sin(s.decl)*sin(LAT))/(cos(s.decl)*cos(LAT)))/15;return n+(ccw?-T:T)};
+ const asr=(f,t)=>{const s=sun(jd0+t);return ang(-acot(f+tan(Math.abs(LAT-s.decl))),t)};
+ let t={fajr:5,sunrise:6,dhuhr:12,asr:13,maghrib:18,isha:18};
+ for(let i=0;i<2;i++){const f=k=>t[k]/24;t={fajr:ang(15,f("fajr"),true),sunrise:ang(.833,f("sunrise"),true),dhuhr:mid(f("dhuhr")),asr:asr(hanafi?2:1,f("asr")),maghrib:ang(.833,f("maghrib")),isha:ang(15,f("isha"))}}
+ const out={};for(const k in t){out[k]=new Date(Date.UTC(y,m-1,d)+Math.ceil((t[k]-LNG/15)*60)*60000)}return out}
+function todayParts(now){const p={};new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"numeric",day:"numeric"}).formatToParts(now).forEach(x=>p[x.type]=x.value);return[+p.year,+p.month,+p.day]}
+const fmt=dt=>dt.toLocaleTimeString("en",{timeZone:TZ,hour:"numeric",minute:"2-digit"});
+return{times,todayParts,fmt,TZ}})();
+
+
+const $=id=>document.getElementById(id);
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function icon(n,c){const s=document.createElement("span");s.className=c;s.innerHTML=ICONS[n]||"";return s}
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+function cfg(){const c=store.get("formcfg");return CONFIG.formUrl.startsWith("http")?CONFIG:(c&&c.formUrl?c:null)}
+function todayKey(){const [y,m,d]=PT.todayParts(new Date());return y+"-"+m+"-"+d}
+function todayTimes(){const [y,m,d]=PT.todayParts(new Date());return PT.times(y,m,d,false)}
+function windowOf(p,t){const k=p.toLowerCase();const start=t[k];let end;
+  if(NEXT_END[p])end=t[NEXT_END[p]];else{const [y,m,d]=PT.todayParts(new Date());end=new Date(PT.times(y,m,d+1,false).fajr.getTime()-6*3600e3);end=new Date(Math.min(end.getTime(),start.getTime()+6*3600e3));}
+  return{start,end}}
+let sel=store.get("selkid")||"Yousuf";
+function sentToday(){const s=store.get("sent")||{};return s[todayKey()]||{}}
+function markSent(kid,p,at){const s=store.get("sent")||{};const k=todayKey();const keep={};keep[k]=s[k]||{};keep[k][kid+"|"+p]=at;store.set("sent",keep)}
+
+function render(){
+  const c=cfg();$("setup").hidden=!!c;$("main").hidden=!c;
+  $("datestr").textContent=new Date().toLocaleDateString("en",{timeZone:PT.TZ,weekday:"long",month:"long",day:"numeric"});
+  const t=todayTimes(),now=Date.now(),sent=sentToday();
+  const nx=PRAYERS.find(p=>t[p.toLowerCase()].getTime()>now);
+  $("nextline").textContent=nx?"Next: "+nx+" at "+PT.fmt(t[nx.toLowerCase()]):"All of today's prayers have started";
+  if(!c)return;
+  const kb=$("kidbtns");kb.replaceChildren();
+  KIDS.forEach(k=>{const n=PRAYERS.filter(p=>sent[k.id+"|"+p]).length;
+    const b=el("button","kidbtn");b.setAttribute("aria-pressed",String(sel===k.id));
+    const tx=el("div");tx.append(el("b",null,k.id),el("span","count",n+" of 5 today"));
+    b.append(icon(k.kind,"av"),tx);b.onclick=()=>{sel=k.id;store.set("selkid",sel);$("status").textContent="";render()};kb.append(b)});
+  const box=$("prows");box.replaceChildren();
+  PRAYERS.forEach(p=>{
+    const w=windowOf(p,t),done=sent[sel+"|"+p],row=el("div","prow"),left=el("div","pleft"),tx=el("div");
+    tx.append(el("div","pname",p),el("div","ptime",PT.fmt(w.start)+" – "+(p==="Isha"?"midnight":PT.fmt(w.end))));
+    left.append(icon(p.toLowerCase(),"picon"),tx);const right=el("div","right");
+    if(done){row.classList.add("done");right.append(el("span","chip ok","✓ "+new Date(done).toLocaleTimeString("en",{timeZone:PT.TZ,hour:"numeric",minute:"2-digit"})))}
+    else if(now<w.start.getTime()){right.append(el("span","chip","Opens "+PT.fmt(w.start)))}
+    else{const late=now>w.end.getTime();if(late)row.classList.add("late");
+      const b=el("button","primary"+(late?" lateb":""),late?"Prayed (late)":"Prayed");b.onclick=()=>send(p,b);right.append(b)}
+    row.append(left,right);box.append(row)});
+}
+async function send(p,btn){
+  const c=cfg();if(!c)return;btn.disabled=true;$("status").className="status";$("status").textContent="Saving…";
+  const fd=new URLSearchParams();fd.append("entry."+c.childEntry,sel);fd.append("entry."+c.prayerEntry,p);
+  try{await fetch(c.formUrl,{method:"POST",mode:"no-cors",body:fd});
+    markSent(sel,p,Date.now());$("status").textContent="Saved: "+sel+" – "+p+". Well done!";render();}
+  catch(e){btn.disabled=false;$("status").className="status err";$("status").textContent="Not saved – check the internet and tap again."}
+}
+function parsePrefill(url){
+  const u=new URL(url.trim());const m=u.pathname.match(/\/forms\/d\/e\/([^/]+)\//);if(!m)throw 0;
+  let child,prayer;u.searchParams.forEach((v,k)=>{if(!k.startsWith("entry."))return;const id=k.slice(6);
+    if(KIDS.some(x=>x.id===v))child=id;if(PRAYERS.includes(v))prayer=id});
+  if(!child||!prayer)throw 0;return{formUrl:"https://docs.google.com/forms/d/e/"+m[1]+"/formResponse",childEntry:child,prayerEntry:prayer}}
+$("savesetup").onclick=()=>{try{store.set("formcfg",parsePrefill($("prefill").value));render()}
+  catch(e){$("setupstatus").className="status err";$("setupstatus").textContent="That link doesn't look right. Use Get pre-filled link with Yousuf and Fajr selected."}};
+$("resetbtn").onclick=()=>{if(CONFIG.formUrl.startsWith("http")){$("status").textContent="This page is already connected to the family sheet.";return}store.set("formcfg",null);render()};
+render();setInterval(render,30000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)render()});
+</script>
+</body>
+</html>
