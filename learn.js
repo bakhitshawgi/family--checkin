@@ -255,7 +255,9 @@
       const col = st.lastElementChild;
       if (s.rec && RECORDINGS[s.rec]) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS[s.rec]); col.append(b); }
       if (s.playSurah) { const b = playBtn("▶ Listen to Al-Fatiha"); b.onclick = () => playAyahs(b, 1, [1, 2, 3, 4, 5, 6, 7]); col.append(b); }
-      if (s.playText === "tashahhud" && RECORDINGS.tashahhud) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS.tashahhud); col.append(b); }
+      if (s.playText === "tashahhud") {               // Dad's recording if added, otherwise the device's Arabic voice
+        const b = playBtn("▶ Listen"); b.onclick = () => RECORDINGS.tashahhud ? playFile(b, RECORDINGS.tashahhud) : speak(b, TASHAHHUD.ar); col.append(b);
+      }
       box.append(st);
     });
     box.append(textBlock("Tashahhud (At-Tahiyyat)", TASHAHHUD), textBlock("Salawat on the Prophet ﷺ (last sitting)", SALAWAT));
@@ -266,6 +268,7 @@
     d.append(h("h3", null, esc(title)));
     const a = h("div", "ayah"); a.innerHTML = `<div class="ar">${t.ar}</div><div class="tr">${esc(t.tr)}</div><div class="en">${esc(t.en)}</div>`;
     if (t.rec && RECORDINGS[t.rec]) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS[t.rec]); a.append(b); }
+    else if (t.rec === "tashahhud") { const b = playBtn("▶ Listen (device voice)"); b.onclick = () => speak(b, t.ar); a.append(b); }
     d.append(a); return d;
   }
   function wuduTab() {
