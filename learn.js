@@ -156,14 +156,15 @@
     sujud: drive("sujud", "1QLXrruVcdTnVuvDmv9EF61GWjxS4NbRn"),
     jalsa: drive("jalsa", "1IMbBtXFOP7wLhMxkNBRZYiTMEeI1D5qP"),
     salam: drive("salam", "16eGIqIMdOIdwOEti3gqbCP5SRpBYzB08"),
-    // tashahhud: drive("…"), salawat: drive("…"),   ← add when recorded
+    tashahhud: ["tashahhud.mp4", "tashahhud.m4a"],     // if not uploaded yet, the device's Arabic voice is used
+    // salawat: drive("salawat", "<drive id>"),   ← add when recorded
   };
-  function playFile(btn, urls) {
+  function playFile(btn, urls, fallback) {
     if (playingBtn === btn) { stopAll(); return; }
     markBtn(btn); const token = playToken; const list = [].concat(urls); let i = 0;
     const tryNext = () => {
       if (token !== playToken) return;
-      if (i >= list.length) { stopAll(); alertNote(btn, "Couldn't play the recording."); return; }
+      if (i >= list.length) { stopAll(); if (fallback) fallback(); else alertNote(btn, "Couldn't play the recording."); return; }
       player.src = list[i++];
       const pr = player.play();
       if (pr && pr.catch) pr.catch(err => { if (token !== playToken) return; if (err && err.name === "NotAllowedError") { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
@@ -256,7 +257,7 @@
       if (s.rec && RECORDINGS[s.rec]) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS[s.rec]); col.append(b); }
       if (s.playSurah) { const b = playBtn("▶ Listen to Al-Fatiha"); b.onclick = () => playAyahs(b, 1, [1, 2, 3, 4, 5, 6, 7]); col.append(b); }
       if (s.playText === "tashahhud") {               // Dad's recording if added, otherwise the device's Arabic voice
-        const b = playBtn("▶ Listen"); b.onclick = () => RECORDINGS.tashahhud ? playFile(b, RECORDINGS.tashahhud) : speak(b, TASHAHHUD.ar); col.append(b);
+        const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS.tashahhud, () => speak(b, TASHAHHUD.ar)); col.append(b);
       }
       box.append(st);
     });
@@ -267,8 +268,7 @@
     const d = h("div", "surah");
     d.append(h("h3", null, esc(title)));
     const a = h("div", "ayah"); a.innerHTML = `<div class="ar">${t.ar}</div><div class="tr">${esc(t.tr)}</div><div class="en">${esc(t.en)}</div>`;
-    if (t.rec && RECORDINGS[t.rec]) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS[t.rec]); a.append(b); }
-    else if (t.rec === "tashahhud") { const b = playBtn("▶ Listen (device voice)"); b.onclick = () => speak(b, t.ar); a.append(b); }
+    if (t.rec && RECORDINGS[t.rec]) { const b = playBtn("▶ Listen"); b.onclick = () => playFile(b, RECORDINGS[t.rec], t.rec === "tashahhud" ? () => speak(b, t.ar) : null); a.append(b); }
     d.append(a); return d;
   }
   function wuduTab() {
