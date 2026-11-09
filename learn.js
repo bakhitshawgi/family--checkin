@@ -107,10 +107,11 @@
 
 
   /* ---------- audio ---------- */
-  // Qur'an: verse-by-verse recordings by Sheikh Mishary Alafasy (everyayah.com).
+  // Qur'an: verse-by-verse recordings by Sheikh Abdurrahman Al-Sudais, falling back to Sheikh Mishary Alafasy (everyayah.com).
   // Phrases & Tashahhud: the device's Arabic voice (text-to-speech), not a human reciter.
   const pad3 = n => String(n).padStart(3, "0");
-  const ayahUrl = (sura, ayah) => `https://everyayah.com/data/Alafasy_128kbps/${pad3(sura)}${pad3(ayah)}.mp3`;
+  const RECITERS = ["Abdurrahmaan_As-Sudais_192kbps", "Alafasy_128kbps"];   // Sudais first, Alafasy if a file fails
+  const ayahUrl = (sura, ayah, r = 0) => `https://everyayah.com/data/${RECITERS[r]}/${pad3(sura)}${pad3(ayah)}.mp3`;
   // One shared <audio> element: iPhone/iPad only allow sound on an element that a tap has started,
   // so we keep reusing it (change src) instead of creating a new player for every verse.
   const player = new Audio(); player.preload = "auto"; player.setAttribute("playsinline", "");
@@ -129,11 +130,16 @@
     const next = () => {
       if (token !== playToken) return;
       if (!queue.length) { stopAll(); return; }
-      player.src = ayahUrl(sura, queue.shift());
+      const ayah = queue.shift(); let r = 0;
+      player.src = ayahUrl(sura, ayah, r);
       player.onended = next;
-      player.onerror = () => { if (token === playToken) { stopAll(); alertNote(btn, "Couldn't load the recitation. Check the internet."); } };
+      player.onerror = () => {
+        if (token !== playToken) return;
+        if (r + 1 < RECITERS.length) { r++; player.src = ayahUrl(sura, ayah, r); const q = player.play(); if (q && q.catch) q.catch(() => {}); return; }
+        stopAll(); alertNote(btn, "Couldn't load the recitation. Check the internet.");
+      };
       const pr = player.play();                       // first call runs inside the tap, which unlocks audio on iOS
-      if (pr && pr.catch) pr.catch(() => { if (token === playToken) { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
+      if (pr && pr.catch) pr.catch(err => { if (token === playToken && err && err.name === "NotAllowedError") { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
     };
     next();
   }
@@ -149,7 +155,7 @@
     player.src = url; player.onended = () => { if (token === playToken) stopAll(); };
     player.onerror = () => { if (token === playToken) { stopAll(); alertNote(btn, "Couldn't load the recording."); } };
     const pr = player.play();
-    if (pr && pr.catch) pr.catch(() => { if (token === playToken) { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
+    if (pr && pr.catch) pr.catch(err => { if (token === playToken && err && err.name === "NotAllowedError") { stopAll(); alertNote(btn, "Sound was blocked. Turn off silent mode, raise the volume and tap again."); } });
   }
   let arVoice = null;
   function pickVoice() { try { const vs = speechSynthesis.getVoices(); arVoice = vs.find(v => /^ar[-_]?/i.test(v.lang)) || null; } catch (e) {} }
@@ -227,7 +233,7 @@
   }
   function howTab() {
     const box = h("div", "lcol");
-    box.append(h("p", "tip", "Tap ▶ to hear the Qur'an recited by Sheikh Mishary Alafasy. Every rak'ah has the same moves. Follow the pictures from top to bottom. This guide follows the Maliki school."));
+    box.append(h("p", "tip", "Tap ▶ to hear the Qur'an recited by Sheikh Abdurrahman Al-Sudais. Every rak'ah has the same moves. Follow the pictures from top to bottom. This guide follows the Maliki school."));
     STEPS.forEach((s, k) => {
       const st = h("div", "step");
       st.innerHTML = `${fig(s.pose)}<div><h3>${k + 1}. ${esc(s.title)}</h3><p>${esc(s.text)}</p><span class="say">${esc(s.say)}</span></div>`;
