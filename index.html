@@ -70,6 +70,9 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .markform label{flex-basis:100%;font-size:13px}
 .markform .primary{min-width:90px;min-height:40px}
 .markb{min-width:0}
+.prow.parent{grid-template-columns:1fr;gap:8px}
+.prow.parent .right{justify-content:flex-start}
+.prow.parent .ptime{white-space:nowrap}
 .foot{font-size:12px;color:var(--muted);text-align:center}
 .foot button{background:none;color:var(--muted);text-decoration:underline;padding:4px;font-weight:400}
 @media (prefers-reduced-motion:no-preference){.prow{transition:background .25s}}
@@ -106,6 +109,10 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
     <p class="sub" id="nextline"></p>
   </header>
 
+  <nav class="ptabs" id="ptabs" hidden aria-label="Parent views">
+    <button data-tab="today">Today</button><button data-tab="stats">Stats</button><button data-tab="tracker">Tracker</button>
+  </nav>
+
   <section class="panel" id="login" hidden>
     <h2>Sign in</h2>
     <label for="who">Name<select id="who"><option>Yousuf</option><option>Eva</option><option>Dad</option><option>Mom</option></select></label>
@@ -135,6 +142,17 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
   <section class="panel" id="history" hidden>
     <h2>Recent</h2>
     <div class="hist" id="histlist"></div>
+  </section>
+
+  <section class="panel" id="stats" hidden>
+    <h2>Statistics</h2>
+    <div id="statsbody" style="display:flex;flex-direction:column;gap:12px"></div>
+  </section>
+
+  <section class="panel" id="tracker" hidden>
+    <h2>Prayer tracker</h2>
+    <p class="note">Tap any box to see the details and write a note.</p>
+    <div id="trackerbody" style="display:flex;flex-direction:column;gap:10px"></div>
   </section>
 
   <p class="foot"><span id="whoami"></span> <button id="logout" hidden>Sign out</button></p>
@@ -243,7 +261,9 @@ async function load() {
   const since = Date.now() - 70 * 86400e3;
   try {
     const j = await api({ ...auth(), action: "list", since });
-    entries = process(j.rows); loaded = true; render();
+    entries = process(j.rows);
+    window.notes = (j.notes || []).map(([day, child, prayer, text, by, at]) => ({ day, child, prayer, text, by, at }));
+    loaded = true; render();
   } catch (e) {
     if (e.code === "login") { session = null; store.set("session", null); render(); return; }
     say("Can't reach the family sheet. Check the internet.", true);
@@ -320,6 +340,7 @@ function render() {
   const signedIn = !!session;
   $("login").hidden = signedIn;
   ["today", "month", "history"].forEach(id => $(id).hidden = !signedIn);
+  $("ptabs").hidden = true; $("stats").hidden = true; $("tracker").hidden = true;
   $("logout").hidden = !signedIn;
   if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
 
@@ -328,6 +349,18 @@ function render() {
   const kid = admin ? sel : session.user;
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
   $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (parent)" : "") + ".";
+  if (admin) {                                            // Dad / Mom: Today · Stats · Tracker
+    const tab = store.get("ptab") || "today";
+    $("ptabs").hidden = false;
+    [...$("ptabs").children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === tab)));
+    if (tab !== "today") {
+      ["today", "month", "history"].forEach(id => $(id).hidden = true);
+      $(tab).hidden = false;
+      if (loaded && window.renderParents) window.renderParents(tab);
+      else if (!loaded) $(tab === "stats" ? "statsbody" : "trackerbody").replaceChildren(el("p", "note", "Loading…"));
+      return;
+    }
+  }
 
   // header / kid switch
   const hello = $("hello"); hello.replaceChildren();
@@ -349,7 +382,7 @@ function render() {
   const box = $("prows"); box.replaceChildren();
   if (!loaded) box.append(el("p", "note", "Loading…"));
   else PRAYERS.forEach(p => {
-    const w = windowFor(p, tp), row = el("div", "prow"), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
+    const w = windowFor(p, tp), row = el("div", "prow" + (admin ? " parent" : "")), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
     tx.append(el("div", "pname", p), el("div", "ptime", fmtT(w.start) + " – " + (p === "Isha" ? "midnight" : fmtT(w.end))));
     left.append(icon(p.toLowerCase(), "picon"), tx);
     if (window.openLearn) { const lb = el("button", "learnbtn"); lb.innerHTML = window.LEARN_BOOK_ICON; lb.setAttribute("aria-label", "Learn " + p); lb.title = "Learn how to pray " + p; lb.onclick = () => window.openLearn(p); left.append(lb); }
@@ -368,6 +401,11 @@ function render() {
       const late = now > w.end; if (late) row.classList.add("late");
       const b = el("button", "primary" + (late ? " lateb" : ""), late ? "Prayed (late)" : "Prayed");
       b.onclick = () => confirmPrayer(p, b); right.append(b);
+    }
+    if (admin && window.openNote) {
+      const n = window.noteFor && window.noteFor(kid, today, p);
+      if (n) tx.append(el("div", "pnote", "✎ " + n.text));
+      const nb = el("button", "notebtn", n ? "✎ Note" : "+ Note"); nb.onclick = () => window.openNote(kid, tp, p); right.append(nb);
     }
     row.append(left, right); box.append(row);
   });
@@ -420,6 +458,7 @@ $("loginbtn").onclick = async () => {
 $("pass").addEventListener("keydown", e => { if (e.key === "Enter") $("loginbtn").click(); });
 $("logout").onclick = () => { session = null; store.set("session", null); entries = []; loaded = false; render(); };
 $("monthtoggle").onclick = () => { showLastMonth = !showLastMonth; render(); };
+[...$("ptabs").children].forEach(b => b.onclick = () => { store.set("ptab", b.dataset.tab); render(); window.scrollTo(0, 0); });
 
 (async () => {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -435,5 +474,6 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); } });
 </script>
+<script src="parents.js?v=20261111b"></script>
 </body>
 </html>

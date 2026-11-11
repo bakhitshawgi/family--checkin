@@ -20,6 +20,8 @@ const VIEWERS = ['Dad', 'Mom']; // see both children and can mark prayers for th
 const KIDS = ['Yousuf', 'Eva'];
 const PRAYERS = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 const LOG_SHEET = 'Log';
+const NOTES_SHEET = 'Notes';   // parents' notes on a prayer: Date | Child | Prayer | Note | By | Updated
+const TZ = 'America/Toronto';
 const UNDO_MINUTES = 15;
 
 function doGet(e) {
@@ -38,6 +40,27 @@ function doGet(e) {
   const action = p.action || 'list';
 
   if (action === 'login') return out_({ ok: true, user: user, admin: isAdmin, viewAll: seesAll, kids: KIDS });
+
+  if (action === 'note') {                          // Dad / Mom: write, change or clear a note on one prayer
+    if (!seesAll) return out_({ ok: false, error: 'bad', message: 'Only Mom and Dad can write notes.' });
+    if (KIDS.indexOf(p.child) < 0 || PRAYERS.indexOf(p.prayer) < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(p.date || '')) return out_({ ok: false, error: 'bad', message: 'Bad note.' });
+    const text = String(p.note || '').trim().slice(0, 300);
+    const ns = notesSheet_();
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    try {
+      const last = ns.getLastRow();
+      const vals = last < 2 ? [] : ns.getRange(2, 1, last - 1, 3).getValues();
+      let row = -1;
+      for (let i = 0; i < vals.length; i++) if (dayStr_(vals[i][0]) === p.date && vals[i][1] === p.child && vals[i][2] === p.prayer) { row = i + 2; break; }
+      if (!text) { if (row > 0) ns.deleteRow(row); return out_({ ok: true, cleared: true }); }
+      const data = [[p.date, p.child, p.prayer, text, user, new Date()]];
+      if (row > 0) ns.getRange(row, 1, 1, 6).setValues(data); else ns.appendRow(data[0]);
+      return out_({ ok: true, at: Date.now() });
+    } finally {
+      lock.releaseLock();
+    }
+  }
 
   if (action === 'add' || action === 'undo' || action === 'remove') {
     const child = seesAll ? p.child : user;          // a child can only act for themselves; parents choose the child
@@ -93,7 +116,15 @@ function doGet(e) {
   const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 4).getValues()
     .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (seesAll || r[1] === user))
     .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1])]);
-  return out_({ ok: true, user: user, admin: isAdmin, viewAll: seesAll, rows: rows, now: Date.now() });
+  let notes = [];
+  if (seesAll) {                                    // notes are only sent to Mom and Dad
+    const sinceDay = Utilities.formatDate(new Date(since), TZ, 'yyyy-MM-dd');
+    const ns = notesSheet_(), nl = ns.getLastRow();
+    notes = nl < 2 ? [] : ns.getRange(2, 1, nl - 1, 6).getValues()
+      .map(r => [dayStr_(r[0]), String(r[1]), String(r[2]), String(r[3]), String(r[4]), r[5] instanceof Date ? r[5].getTime() : 0])
+      .filter(r => r[0] >= sinceDay);
+  }
+  return out_({ ok: true, user: user, admin: isAdmin, viewAll: seesAll, rows: rows, notes: notes, now: Date.now() });
 }
 
 function logSheet_() {
@@ -106,6 +137,22 @@ function logSheet_() {
     sh.setFrozenRows(1);
   }
   return sh;
+}
+
+function notesSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(NOTES_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(NOTES_SHEET);
+    sh.appendRow(['Date', 'Child', 'Prayer', 'Note', 'By', 'Updated']);
+    sh.getRange('A:A').setNumberFormat('@');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function dayStr_(v) {
+  return v instanceof Date ? Utilities.formatDate(v, TZ, 'yyyy-MM-dd') : String(v);
 }
 
 function out_(obj) {
