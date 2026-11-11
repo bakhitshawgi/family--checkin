@@ -110,9 +110,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
     <p class="sub" id="nextline"></p>
   </header>
 
-  <nav class="ptabs" id="ptabs" hidden aria-label="Parent views">
-    <button data-tab="today">Today</button><button data-tab="stats">Stats</button><button data-tab="tracker">Tracker</button>
-  </nav>
+  <nav class="ptabs" id="ptabs" hidden aria-label="Views"></nav>
 
   <section class="panel" id="login" hidden>
     <h2>Sign in</h2>
@@ -156,7 +154,17 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
     <div id="trackerbody" style="display:flex;flex-direction:column;gap:10px"></div>
   </section>
 
-  <p class="foot"><span id="whoami"></span> <button id="logout" hidden>Sign out</button></p>
+  <section class="panel" id="tasks" hidden>
+    <h2>Tasks</h2>
+    <div id="tasksbody" class="fambody"></div>
+  </section>
+
+  <section class="panel" id="requests" hidden>
+    <h2>Requests</h2>
+    <div id="requestsbody" class="fambody"></div>
+  </section>
+
+  <p class="foot"><span id="whoami"></span> <button id="photobtn" hidden>My photo</button> <button id="logout" hidden>Sign out</button></p>
 </div>
 
 <script src="learn.js?v=20261109b"></script>
@@ -168,6 +176,7 @@ const KIDS = [{ id: "Yousuf", kind: "boy" }, { id: "Eva", kind: "girl" }];
 const PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const NEXT_END = { Fajr: "sunrise", Dhuhr: "asr", Asr: "maghrib", Maghrib: "isha" };
 const UNDO_MINUTES = 15;
+const MARK_LIMIT_MS = 24 * 3600e3;     // a prayer can't be marked more than 24 hours after its time started
 
 const ICONS={
 fajr:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="10" cy="10" r="1.6" fill="var(--moon)"/><circle cx="38" cy="8" r="1.2" fill="var(--moon)"/><path d="M13 32a11 11 0 0 1 22 0z" fill="var(--sun)"/><path d="M24 13v4M13.4 18.4l2.8 2.8M34.6 18.4l-2.8 2.8M6 32h36M14 38h20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>',
@@ -264,6 +273,8 @@ async function load() {
     const j = await api({ ...auth(), action: "list", since });
     entries = process(j.rows);
     window.notes = (j.notes || []).map(([day, child, prayer, text, by, at]) => ({ day, child, prayer, text, by, at }));
+    window.tasks = j.tasks; window.requests = j.requests; window.taskTypes = j.taskTypes;
+    if (window.syncPhotos) window.syncPhotos(j.photosAt);
     loaded = true; render();
   } catch (e) {
     if (e.code === "login") { session = null; store.set("session", null); render(); return; }
@@ -307,29 +318,38 @@ function zonedMs(y, m, d, hh, mi) {               // Toronto wall-clock time -> 
   return t;
 }
 function hhmm(ms) { return new Intl.DateTimeFormat("en-GB", { timeZone: PT.TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(ms)); }
-function openMark(prayer, kid, w, right) {
-  const row = right.parentElement; right.hidden = true;
-  const form = el("div", "markform"); row.append(form);
-  const now = Date.now(), inp = el("input", "timein"); inp.type = "time"; inp.id = "mark-" + prayer;
-  inp.value = hhmm(Math.min(now, w.end > now ? now : w.end)); inp.setAttribute("aria-label", "Time " + kid + " prayed " + prayer);
+// form to save the real time a child prayed; dayP = [y, m, d] of that prayer (today, or a recent day from the Tracker)
+function markForm(prayer, kid, dayP, w, msg, onDone, onCancel) {
+  msg = msg || say;
+  const form = el("div", "markform"), now = Date.now(), inp = el("input", "timein"); inp.type = "time"; inp.id = "mark-" + prayer + "-" + dayKey(dayP);
+  inp.value = hhmm(Math.min(now, w.end)); inp.setAttribute("aria-label", "Time " + kid + " prayed " + prayer);
   const ok = el("button", "primary", "Save"), cancel = el("button", "ghost", "Cancel");
-  cancel.onclick = () => render();
+  cancel.onclick = () => (onCancel || render)();
   ok.onclick = async () => {
     const [hh, mi] = inp.value.split(":").map(Number); if (isNaN(hh)) return;
-    const tp = parts(now), at = zonedMs(tp[0], tp[1], tp[2], hh, mi);
-    if (at > now + 60e3) { say("That time is in the future.", true); return; }
-    if (at < w.start) { say(prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true); return; }
-    ok.disabled = true; say("Saving…");
+    const at = zonedMs(dayP[0], dayP[1], dayP[2], hh, mi);
+    if (Date.now() - w.start > MARK_LIMIT_MS) { msg("More than 24 hours have passed since " + prayer + " time. It can no longer be marked.", true); return; }
+    if (at > Date.now() + 60e3) { msg("That time is in the future.", true); return; }
+    if (at < w.start) { msg(prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true); return; }
+    ok.disabled = true; msg("Saving…");
     try {
-      const j = await api({ ...auth(), action: "add", child: kid, prayer, at });
+      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start });
       entries = process([...entries.map(e => [e.at, e.child, e.prayer, e.by]), [j.at, kid, prayer, session.user]]);
       const e = entries.find(x => x.at === j.at && x.child === kid);
-      say("Saved: " + kid + " – " + prayer + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
-      render();
-    } catch (err) { ok.disabled = false; say(err.message, true); }
+      (onDone || render)();
+      msg("Saved: " + kid + " – " + prayer + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
+    } catch (err) { ok.disabled = false; msg(err.message, true); }
   };
-  const lab = el("label", "note", kid + " prayed " + prayer + " at"); lab.htmlFor = inp.id; form.append(lab, inp, ok, cancel); inp.focus();
+  const lab = el("label", "note", kid + " prayed " + prayer + " at"); lab.htmlFor = inp.id; form.append(lab, inp, ok, cancel);
+  setTimeout(() => inp.focus(), 0);
+  return form;
 }
+window.markForm = markForm;
+window.canMark = w => Date.now() - w.start <= MARK_LIMIT_MS;
+function openMark(prayer, kid, w, right) {
+  right.hidden = true; right.parentElement.append(markForm(prayer, kid, parts(Date.now()), w));
+}
+const av = (id, cls) => window.avatar ? window.avatar(id, cls) : icon(kidKind(id), cls);
 
 /* ===== Render ===== */
 function render() {
@@ -341,8 +361,8 @@ function render() {
   const signedIn = !!session;
   $("login").hidden = signedIn;
   ["today", "month", "history"].forEach(id => $(id).hidden = !signedIn);
-  $("ptabs").hidden = true; $("stats").hidden = true; $("tracker").hidden = true;
-  $("logout").hidden = !signedIn;
+  ["ptabs", "stats", "tracker", "tasks", "requests"].forEach(id => $(id).hidden = true);
+  $("logout").hidden = !signedIn; $("photobtn").hidden = !signedIn;
   if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
 
   const admin = !!(session.viewAll || session.admin);   // family view (Dad or Mom)
@@ -350,17 +370,23 @@ function render() {
   const kid = admin ? sel : session.user;
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
   $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (parent)" : "") + ".";
-  if (admin) {                                            // Dad / Mom: Today · Stats · Tracker
-    const tab = store.get("ptab") || "today";
-    $("ptabs").hidden = false;
-    [...$("ptabs").children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === tab)));
-    if (tab !== "today") {
-      ["today", "month", "history"].forEach(id => $(id).hidden = true);
-      $(tab).hidden = false;
-      if (loaded && window.renderParents) window.renderParents(tab);
-      else if (!loaded) $(tab === "stats" ? "statsbody" : "trackerbody").replaceChildren(el("p", "note", "Loading…"));
-      return;
-    }
+  // tabs – Dad / Mom: Today · Stats · Tracker · Tasks · Requests;  children: Prayers · Tasks · Requests
+  const TABS = admin ? [["today", "Today"], ["stats", "Stats"], ["tracker", "Tracker"], ["tasks", "Tasks"], ["requests", "Requests"]]
+                     : [["today", "Prayers"], ["tasks", "Tasks"], ["requests", "Requests"]];
+  let tab = store.get("ptab") || "today"; if (!TABS.some(t => t[0] === tab)) tab = "today";
+  const nav = $("ptabs"); nav.hidden = false; nav.replaceChildren();
+  TABS.forEach(([id, label]) => {
+    const b = el("button", null, label); b.dataset.tab = id; b.setAttribute("aria-pressed", String(id === tab));
+    const n = loaded && window.famBadge ? window.famBadge(id) : 0; if (n) b.append(el("span", "badge", String(n)));
+    b.onclick = () => { store.set("ptab", id); render(); window.scrollTo(0, 0); }; nav.append(b);
+  });
+  if (tab !== "today") {
+    ["today", "month", "history"].forEach(id => $(id).hidden = true);
+    $(tab).hidden = false;
+    if (!loaded) $(tab + "body").replaceChildren(el("p", "note", "Loading…"));
+    else if (tab === "tasks" || tab === "requests") { if (window.renderFamily) window.renderFamily(tab); }
+    else if (window.renderParents) window.renderParents(tab);
+    return;
   }
 
   // header / kid switch
@@ -371,12 +397,13 @@ function render() {
     KIDS.forEach(k => {
       const b = el("button", "kidbtn"); b.setAttribute("aria-pressed", String(sel === k.id));
       const tx = el("div"); tx.append(el("b", null, k.id), el("span", "count", pts(todayPts(k.id)) + (todayPts(k.id) === 1 ? " point" : " points") + " today"));
-      b.append(icon(k.kind, "av"), tx); b.onclick = () => { sel = k.id; store.set("selkid", sel); say(""); render(); };
+      b.append(av(k.id, "av"), tx); b.onclick = () => { sel = k.id; store.set("selkid", sel); say(""); render(); };
       kb.append(b);
     });
   } else {
     const tx = el("div"); tx.append(el("b", null, "Today: " + pts(todayPts(kid)) + (todayPts(kid) === 1 ? " point" : " points")), el("div", "note", "Tap Prayed right after you pray."));
-    hello.append(icon(kidKind(kid), "av"), tx);
+    const me = av(kid, "av"); me.title = "Change my photo"; me.onclick = () => window.openPhotos && window.openPhotos();
+    hello.append(me, tx);
   }
 
   // today's prayers
@@ -460,7 +487,7 @@ $("loginbtn").onclick = async () => {
 $("pass").addEventListener("keydown", e => { if (e.key === "Enter") $("loginbtn").click(); });
 $("logout").onclick = () => { session = null; store.set("session", null); entries = []; loaded = false; render(); };
 $("monthtoggle").onclick = () => { showLastMonth = !showLastMonth; render(); };
-[...$("ptabs").children].forEach(b => b.onclick = () => { store.set("ptab", b.dataset.tab); render(); window.scrollTo(0, 0); });
+$("photobtn").onclick = () => window.openPhotos && window.openPhotos();
 
 (async () => {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -476,6 +503,7 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); } });
 </script>
-<script src="parents.js?v=20261111b"></script>
+<script src="parents.js?v=20261111c"></script>
+<script src="family.js?v=20261111a"></script>
 </body>
 </html>

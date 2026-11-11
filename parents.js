@@ -134,6 +134,14 @@
     const label = s.e ? s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
       : s.key === "missed" ? "Not prayed (missed)" : s.key === "before" ? "Before tracking started" : s.key === "open" ? "Time is open now (until " + fmtT(s.w.end) + ")" : "Not due yet (starts " + fmtT(s.w.start) + ")";
     card.append(el("b", null, child + " · " + prayer + " · " + dayLabel(d)), el("div", "note", "Adhan " + fmtT(s.w.start) + " · " + label));
+    if (!s.e && (s.key === "missed" || s.key === "open") && window.markForm) {   // forgot to mark? allowed for 24 hours only
+      if (window.canMark(s.w)) {
+        const st = el("div", "status"), b = el("button", "primary", "Mark prayed");
+        const msg = (m, err) => { st.className = "status" + (err ? " err" : ""); st.textContent = m; };
+        b.onclick = () => b.replaceWith(window.markForm(prayer, child, d, s.w, msg, () => { document.querySelectorAll(".nov").forEach(x => x.remove()); render(); }, () => render()));
+        card.append(b, st);
+      } else card.append(el("div", "note", "More than 24 hours have passed since this prayer's time, so it can't be marked anymore."));
+    }
     card.append(noteEditor(child, s.day, prayer, n));
     return card;
   }
@@ -175,7 +183,11 @@
 
   window.renderParents = function (tab) {
     if (tab === "stats") renderStats();
-    if (tab === "tracker") renderTracker();
+    if (tab === "tracker") {
+      const a = document.activeElement;                // don't wipe a note or time being typed (the page refreshes every 30 s)
+      if (a && $("trackerbody").contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName)) return;
+      renderTracker();
+    }
   };
 
   document.head.insertAdjacentHTML("beforeend", `<style>
