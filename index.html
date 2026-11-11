@@ -70,9 +70,10 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .markform label{flex-basis:100%;font-size:13px}
 .markform .primary{min-width:90px;min-height:40px}
 .markb{min-width:0}
-.prow.parent{grid-template-columns:1fr;gap:8px}
-.prow.parent .right{justify-content:flex-start}
-.prow.parent .ptime{white-space:nowrap}
+.pextra{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:8px;border-top:1px solid var(--line)}
+.pextra .learnwide{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--accent);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
+.pextra .learnwide svg{width:16px;height:16px}
+.pextra .pnote{flex-basis:100%;max-width:none}
 .foot{font-size:12px;color:var(--muted);text-align:center}
 .foot button{background:none;color:var(--muted);text-decoration:underline;padding:4px;font-weight:400}
 @media (prefers-reduced-motion:no-preference){.prow{transition:background .25s}}
@@ -385,7 +386,8 @@ function render() {
     const w = windowFor(p, tp), row = el("div", "prow" + (admin ? " parent" : "")), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
     tx.append(el("div", "pname", p), el("div", "ptime", fmtT(w.start) + " – " + (p === "Isha" ? "midnight" : fmtT(w.end))));
     left.append(icon(p.toLowerCase(), "picon"), tx);
-    if (window.openLearn) { const lb = el("button", "learnbtn"); lb.innerHTML = window.LEARN_BOOK_ICON; lb.setAttribute("aria-label", "Learn " + p); lb.title = "Learn how to pray " + p; lb.onclick = () => window.openLearn(p); left.append(lb); }
+    const extra = el("div", "pextra");
+    if (window.openLearn) { const lb = el("button", "learnwide"); lb.innerHTML = window.LEARN_BOOK_ICON + "<span>How to pray " + p + "</span>"; lb.onclick = () => window.openLearn(p); extra.append(lb); }
     const done = entries.find(e => e.child === kid && e.day === today && e.prayer === p && (e.key === "ontime" || e.key === "late" || e.key === "verylate"));
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
@@ -404,10 +406,10 @@ function render() {
     }
     if (admin && window.openNote) {
       const n = window.noteFor && window.noteFor(kid, today, p);
-      if (n) tx.append(el("div", "pnote", "✎ " + n.text));
-      const nb = el("button", "notebtn", n ? "✎ Note" : "+ Note"); nb.onclick = () => window.openNote(kid, tp, p); right.append(nb);
+      const nb = el("button", "notebtn", n ? "✎ Edit note" : "+ Note"); nb.onclick = () => window.openNote(kid, tp, p); extra.append(nb);
+      if (n) extra.append(el("div", "pnote", "✎ " + n.text));
     }
-    row.append(left, right); box.append(row);
+    row.append(left, right, extra); box.append(row);
   });
 
   // month
