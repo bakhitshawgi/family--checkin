@@ -46,6 +46,12 @@ h2{font-family:var(--display);font-weight:400;font-size:20px;margin:0}
 .kidbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--sel)}
 .kidbtn b{font-size:20px;font-family:var(--display);font-weight:400;display:block}
 .kidbtn span.count{font-size:13px;color:var(--muted)}
+.kids.parents .kidbtn{background:var(--surface);border:1px solid var(--line);padding:10px;cursor:default}
+.kids.parents .kidbtn.me{cursor:pointer}
+.kids.parents .kidbtn b{font-size:17px}
+.kids.parents .av{width:40px;height:40px}
+.kidbtn span.count{display:block}
+.kidbtn span.edit{color:var(--accent);font-weight:600}
 .av{flex:none;width:48px;height:48px;display:block}.av svg,.picon svg{width:100%;height:100%;display:block}
 .rows{display:flex;flex-direction:column;gap:10px}
 .prow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:var(--wait-bg)}
@@ -123,6 +129,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
 
   <section class="panel" id="today" hidden>
     <div class="hello" id="hello"></div>
+    <div class="kids parents" id="parentcards" hidden></div>
     <div class="kids" id="kidbtns" hidden></div>
     <div class="rows" id="prows"></div>
     <div class="status" id="status" role="status" aria-live="polite"></div>
@@ -407,6 +414,14 @@ function render() {
   // header / kid switch
   const hello = $("hello"); hello.replaceChildren();
   const kb = $("kidbtns"); kb.replaceChildren(); kb.hidden = !admin; hello.hidden = admin;
+  const pc = $("parentcards"); pc.replaceChildren(); pc.hidden = !admin;
+  if (admin) ["Dad", "Mom"].forEach(u => {                 // parents' profiles: photo, role, what they did today
+    const mine = u === session.user, c = el(mine ? "button" : "div", "kidbtn pcard" + (mine ? " me" : ""));
+    const marked = entries.filter(e => e.by === u && e.child !== u && e.day === today).length;
+    const tx = el("div"); tx.append(el("b", null, u), el("span", "count", (u === "Dad" ? "Admin" : "Parent") + " · marked " + marked + " today"));
+    if (mine) { tx.append(el("span", "count edit", "✎ My photo")); c.onclick = () => window.openPhotos && window.openPhotos(); c.setAttribute("aria-label", u + " profile – change my photo"); }
+    c.append(av(u, "av"), tx); pc.append(c);
+  });
   const todayPts = id => entries.filter(e => e.child === id && e.day === today).reduce((a, e) => a + e.points, 0);
   if (admin) {
     KIDS.forEach(k => {
