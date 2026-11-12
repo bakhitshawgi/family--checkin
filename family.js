@@ -52,18 +52,19 @@
       img.src = url;
     });
   }
-  window.openPhotos = function () {
+  window.canEditPhoto = id => !!session && (id === session.user || (isParent() && KIDS.some(k => k.id === id)));
+  window.openPhotos = function (only) {
     document.querySelectorAll(".nov").forEach(x => x.remove());
-    const who = isParent() ? [session.user, ...KIDS.map(k => k.id)] : [session.user];
+    const who = only ? [only] : isParent() ? [session.user, ...KIDS.map(k => k.id)] : [session.user];
     const ov = el("div", "nov"), card = el("div", "novcard"), close = el("button", "ghost", "Close");
     close.onclick = () => ov.remove();
-    const head = el("div", "phhead"); head.append(el("h2", null, "Profile photo"), close);
+    const head = el("div", "phhead"); head.append(el("h2", null, only ? (only === session.user ? "My photo" : only + "'s photo") : "Profile photo"), close);
     card.append(head);
     if (who.length > 1) card.append(el("p", "note", "You can set your own photo and the children's photos."));
     who.forEach(u => {
       const row = el("div", "phrow"), st = el("div", "status"), name = el("b", null, u === session.user ? u + " (you)" : u);
       const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*"; inp.id = "ph-" + u; inp.className = "phfile";
-      const pick = el("label", "phpick", photos[u] ? "Change" : "Add photo"); pick.htmlFor = inp.id;
+      const pick = el("label", "phpick", photos[u] ? "📷 Change photo" : "📷 Add photo"); pick.htmlFor = inp.id;
       const btns = el("div", "right"); btns.append(pick, inp);
       if (photos[u]) { const rm = el("button", "ghost", "Remove"); rm.onclick = () => savePhoto(u, "", st); btns.append(rm); }
       inp.onchange = async () => {
@@ -82,7 +83,7 @@
     try {
       await apiPost({ ...auth(), action: "photo_set", who: u, photo: data });
       if (data) photos[u] = data; else delete photos[u];
-      store.set("photos", photos); render(); window.openPhotos();
+      store.set("photos", photos); render(); document.querySelectorAll(".nov").forEach(x => x.remove());
     } catch (e) { setMsg(st, oldScript(e) ? "Photos need the updated Google script." : e.message, true); }
   }
 
@@ -364,6 +365,8 @@
   .ptabs{overflow-x:auto;scrollbar-width:none}.ptabs::-webkit-scrollbar{display:none}
   .ptabs button{white-space:nowrap;font-size:14px;padding:9px 8px;position:relative}
   .badge{display:inline-block;min-width:18px;height:18px;line-height:18px;border-radius:9px;background:var(--late);color:#fff;font-size:11px;margin-left:4px;padding:0 5px;vertical-align:1px}
-  .hello .avatar{cursor:pointer}
+  .avatar.editable{cursor:pointer;position:relative;overflow:visible}
+  .avatar.editable img,.avatar.editable svg{border-radius:50%}
+  .avatar.editable::after{content:"📷";position:absolute;right:-4px;bottom:-4px;width:20px;height:20px;border-radius:50%;background:var(--surface);border:1px solid var(--line);font-size:11px;line-height:18px;text-align:center}
   </style>`);
 })();

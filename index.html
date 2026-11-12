@@ -178,7 +178,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
     <div id="activitybody" class="fambody"></div>
   </section>
 
-  <p class="foot"><span id="whoami"></span> <button id="photobtn" hidden>My photo</button> <button id="logout" hidden>Sign out</button></p>
+  <p class="foot"><span id="whoami"></span> <button id="logout" hidden>Sign out</button></p>
 </div>
 
 <script src="learn.js?v=20261109b"></script>
@@ -374,6 +374,17 @@ function openMark(prayer, kid, w, right) {
   right.hidden = true; right.parentElement.append(markForm(prayer, kid, parts(Date.now()), w));
 }
 const av = (id, cls) => window.avatar ? window.avatar(id, cls) : icon(kidKind(id), cls);
+// avatar you can tap to change the photo (your own; parents also the children's)
+function photoAv(id) {
+  const a = av(id, "av");
+  if (window.canEditPhoto && window.canEditPhoto(id)) {
+    a.classList.add("editable"); a.setAttribute("role", "button"); a.tabIndex = 0;
+    a.setAttribute("aria-label", "Change " + (id === session.user ? "my" : id + "'s") + " photo");
+    const go = e => { e.stopPropagation(); e.preventDefault(); window.openPhotos(id); };
+    a.addEventListener("click", go); a.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") go(e); });
+  }
+  return a;
+}
 
 /* ===== Render ===== */
 function render() {
@@ -387,7 +398,7 @@ function render() {
   $("login").hidden = signedIn;
   ["today", "month", "history"].forEach(id => $(id).hidden = !signedIn);
   ["ptabs", "stats", "tracker", "tasks", "requests", "activity"].forEach(id => $(id).hidden = true);
-  $("logout").hidden = !signedIn; $("photobtn").hidden = !signedIn;
+  $("logout").hidden = !signedIn;
   if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
 
   const admin = !!(session.viewAll || session.admin);   // family view (Dad or Mom)
@@ -428,13 +439,12 @@ function render() {
       const n = todayPts(id), prayed = entries.filter(e => e.child === id && e.day === today && e.points > 0).length;
       const tx = el("div"); tx.append(el("b", null, id + (id === session.user ? " (you)" : "")),
         el("span", "count", parent ? prayed + " of 5 prayed today" : pts(n) + (n === 1 ? " point" : " points") + " today"));
-      b.append(av(id, "av"), tx); b.onclick = () => { sel = id; store.set("selkid", sel); say(""); render(); };
+      b.append(photoAv(id), tx); b.onclick = () => { sel = id; store.set("selkid", sel); say(""); render(); };
       (parent ? pc : kb).append(b);
     });
   } else {
     const tx = el("div"); tx.append(el("b", null, "Today: " + pts(todayPts(kid)) + (todayPts(kid) === 1 ? " point" : " points")), el("div", "note", "Tap Prayed right after you pray."));
-    const me = av(kid, "av"); me.title = "Change my photo"; me.onclick = () => window.openPhotos && window.openPhotos();
-    hello.append(me, tx);
+    hello.append(photoAv(kid), tx);
   }
 
   // today's prayers
@@ -521,7 +531,6 @@ $("loginbtn").onclick = async () => {
 $("pass").addEventListener("keydown", e => { if (e.key === "Enter") $("loginbtn").click(); });
 $("logout").onclick = () => { session = null; store.set("session", null); entries = []; loaded = false; render(); };
 $("monthtoggle").onclick = () => { showLastMonth = !showLastMonth; render(); };
-$("photobtn").onclick = () => window.openPhotos && window.openPhotos();
 
 (async () => {
   const h = new URLSearchParams(location.hash.slice(1));
@@ -540,7 +549,7 @@ setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
 <script src="parents.js?v=20261111c"></script>
-<script src="family.js?v=20261111a"></script>
+<script src="family.js?v=20261112b"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>
 <script src="wisdom.js?v=20261112a"></script>
