@@ -5,7 +5,7 @@
  * Deploy → Manage deployments → ✏️ → Version: New version → Deploy (keeps the same URL).
  *
  * Tabs it uses (created automatically):
- *   Log      – every prayer:   Timestamp | Child | Prayer | Marked by
+ *   Log      – every prayer:   Timestamp | Child | Prayer | Marked by | Lat | Lng | Place  (old rows without a place = Toronto)
  *   Notes    – parents' notes: Date | Child | Prayer | Note | By | Updated
  *   Tasks    – ID | Created | By | Child | Type | Title | Due | Status | Rating | Updated | Child note
  *   Requests – ID | Created | Child | Text | Audio ID | Status | Decided by | Decided | Reply
@@ -221,7 +221,9 @@ function handle_(p) {
         if (!(at <= Date.now() + 60e3)) return bad('That time is in the future.');
         if (Date.now() - at > limit) return bad('More than 24 hours have passed. It can no longer be marked.');
         if (p.start && Date.now() - Number(p.start) > limit) return bad('More than 24 hours have passed since this prayer\'s time. It can no longer be marked.');
-        sh.appendRow([new Date(at), child, p.prayer, user]);
+        const lat = Number(p.lat), lng = Number(p.lng);   // place the prayer times were counted for (nearest city, never exact GPS)
+        const okLoc = isFinite(lat) && isFinite(lng) && lat !== 0 && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+        sh.appendRow([new Date(at), child, p.prayer, user, okLoc ? Math.round(lat * 100) / 100 : '', okLoc ? Math.round(lng * 100) / 100 : '', okLoc ? String(p.place || '').slice(0, 60) : '']);
         return { ok: true, at: at };
       }
       const last = sh.getLastRow();
@@ -247,9 +249,9 @@ function handle_(p) {
   /* ---------- list: everything the page shows ---------- */
   const since = Number(p.since || 0);
   const last = sh.getLastRow();
-  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 4).getValues()
+  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 7).getValues()
     .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (isParent || r[1] === user))
-    .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1])]);
+    .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1]), r[4] === '' ? '' : Number(r[4]), r[5] === '' ? '' : Number(r[5]), String(r[6] || '')]);
   let notes = [];
   if (isParent) {                                    // notes are only sent to Mom and Dad
     const sinceDay = Utilities.formatDate(new Date(since), TZ, 'yyyy-MM-dd');
@@ -286,7 +288,12 @@ function sheet_(name, head, textCols) {
   }
   return sh;
 }
-function logSheet_() { return sheet_('Log', ['Timestamp', 'Child', 'Prayer', 'Marked by']); }
+function logSheet_() {
+  const sh = sheet_('Log', ['Timestamp', 'Child', 'Prayer', 'Marked by', 'Lat', 'Lng', 'Place']);
+  if (sh.getMaxColumns() < 7) sh.insertColumnsAfter(sh.getMaxColumns(), 7 - sh.getMaxColumns());
+  if (sh.getRange(1, 5).getValue() === '') sh.getRange(1, 5, 1, 3).setValues([['Lat', 'Lng', 'Place']]);   // add the new headers once; old rows stay as they are (= Toronto)
+  return sh;
+}
 function notesSheet_() { return sheet_('Notes', ['Date', 'Child', 'Prayer', 'Note', 'By', 'Updated'], [1]); }
 function findRow_(sh, col, value) {
   const n = sh.getLastRow(); if (n < 2) return 0;

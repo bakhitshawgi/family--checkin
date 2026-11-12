@@ -35,6 +35,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-
 .wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
 header{display:flex;flex-direction:column;gap:2px}
 .eyebrow{font-size:13px;color:var(--gold);font-weight:600}
+.locbtn{background:none;border:0;padding:0;text-align:left;align-self:flex-start;border-radius:6px}
 h1{font-family:var(--display);font-weight:400;font-size:30px;line-height:1.15;margin:0}
 h2{font-family:var(--display);font-weight:400;font-size:20px;margin:0}
 .sub{color:var(--muted);margin:0}
@@ -104,7 +105,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Toronto · ISNA prayer times</div>
+    <button class="eyebrow locbtn" id="locbtn" aria-label="Change prayer-time location">📍 <span id="locname">Toronto</span> · ISNA prayer times ▾</button>
     <h1 id="title">Prayers</h1>
     <p class="sub" id="datestr"></p>
     <p class="sub" id="nextline"></p>
@@ -193,12 +194,12 @@ boy:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" 
 girl:'<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="24" fill="var(--girl-bg)"/><path d="M11.5 24c0-8 5.6-13 12.5-13s12.5 5 12.5 13v14h-25z" fill="var(--hair)"/><path d="M9 48a15 11 0 0 1 30 0z" fill="var(--girl)"/><circle cx="24" cy="23.5" r="10" fill="var(--skin)"/><path d="M14 22c2.5-5 6-6.6 10-6.6s7.5 1.6 10 6.6c-3.5-1.8-6.5-2.6-10-2.6s-6.5.8-10 2.6z" fill="var(--hair)"/><circle cx="33" cy="15.5" r="2.6" fill="var(--bow)"/><circle cx="37" cy="14" r="2.2" fill="var(--bow)"/><circle cx="20.2" cy="24.5" r="1.3" fill="var(--hair)"/><circle cx="27.8" cy="24.5" r="1.3" fill="var(--hair)"/><path d="M20.7 28.6q3.3 2.4 6.6 0" stroke="var(--hair)" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>'
 };
 
-const PT=(()=>{const LAT=43.6532,LNG=-79.3832,TZ="America/Toronto";
+const PT=(()=>{const TZ="America/Toronto";
 const r=d=>d*Math.PI/180,g=x=>x*180/Math.PI,fa=a=>{a%=360;return a<0?a+360:a},fh=h=>{h%=24;return h<0?h+24:h};
 const sin=d=>Math.sin(r(d)),cos=d=>Math.cos(r(d)),tan=d=>Math.tan(r(d)),asin=x=>g(Math.asin(x)),acos=x=>g(Math.acos(x)),atan2=(y,x)=>g(Math.atan2(y,x)),acot=x=>g(Math.atan(1/x));
 function julian(y,m,d){if(m<=2){y-=1;m+=12}const A=Math.floor(y/100),B=2-A+Math.floor(A/4);return Math.floor(365.25*(y+4716))+Math.floor(30.6001*(m+1))+d+B-1524.5}
 function sun(jd){const D=jd-2451545,gg=fa(357.529+.98560028*D),q=fa(280.459+.98564736*D),L=fa(q+1.915*sin(gg)+.02*sin(2*gg)),e=23.439-3.6e-7*D;const RA=atan2(cos(e)*sin(L),cos(L))/15;return{decl:asin(sin(e)*sin(L)),eqt:q/15-fh(RA)}}
-function times(y,m,d,hanafi){const jd0=julian(y,m,d)-LNG/(15*24);
+function times(y,m,d,hanafi,LAT=43.6532,LNG=-79.3832){const jd0=julian(y,m,d)-LNG/(15*24);
  const mid=t=>fh(12-sun(jd0+t).eqt);
  const ang=(a,t,ccw)=>{const s=sun(jd0+t),n=mid(t),T=acos((-sin(a)-sin(s.decl)*sin(LAT))/(cos(s.decl)*cos(LAT)))/15;return n+(ccw?-T:T)};
  const asr=(f,t)=>{const s=sun(jd0+t);return ang(-acot(f+tan(Math.abs(LAT-s.decl))),t)};
@@ -225,10 +226,13 @@ const money = n => "$" + (Math.round(n * 100) / 100).toFixed(2);
 const pts = n => (Math.round(n * 100) / 100).toString();
 const kidKind = id => (KIDS.find(k => k.id === id) || {}).kind || "boy";
 
+/* Prayer-time location: chosen on this device (GPS or a city). Each saved prayer keeps the place it was prayed at. */
+const TORONTO = { name: "Toronto", lat: 43.6532, lng: -79.3832 };
+let LOC = store.get("loc") || { ...TORONTO, mode: "city" };
 const tcache = {};
-function timesFor(p) { const k = dayKey(p); return tcache[k] || (tcache[k] = PT.times(p[0], p[1], p[2], false)); }
-function windowFor(prayer, p) {
-  const t = timesFor(p), start = t[prayer.toLowerCase()];
+function timesFor(p, loc) { loc = loc || LOC; const k = dayKey(p) + "|" + loc.lat + "|" + loc.lng; return tcache[k] || (tcache[k] = PT.times(p[0], p[1], p[2], false, loc.lat, loc.lng)); }
+function windowFor(prayer, p, loc) {
+  const t = timesFor(p, loc), start = t[prayer.toLowerCase()];
   let end;
   if (NEXT_END[prayer]) end = t[NEXT_END[prayer]];
   else { // Isha: until midnight Toronto
@@ -238,8 +242,8 @@ function windowFor(prayer, p) {
   }
   return { start: start.getTime(), end: end.getTime() };
 }
-function classify(at, prayer) {
-  const w = windowFor(prayer, parts(at));
+function classify(at, prayer, loc) {
+  const w = windowFor(prayer, parts(at), loc);
   if (at < w.start) return { key: "before", label: "Before time – not counted", points: 0, w };
   if (at <= w.end) return { key: "ontime", label: "On time", points: RULES.onTime, w };
   if (at <= w.end + RULES.lateHours * 3600e3) return { key: "late", label: "Late", points: RULES.onTime * RULES.late, w };
@@ -248,13 +252,17 @@ function classify(at, prayer) {
 /* rows: [ms, child, prayer] -> entries with status; duplicates (same day/child/prayer) count once */
 function process(rows) {
   const seen = {};
-  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by]) => {
-    const c = classify(at, prayer), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
-    let e = { at, child, prayer, by: by || child, day, month: day.slice(0, 7), ...c };
+  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place]) => {
+    const loc = lat !== "" && lat != null && !isNaN(+lat) && lat !== 0 ? { lat: +lat, lng: +lng, name: place || "" } : TORONTO;   // older rows: Toronto
+    const c = classify(at, prayer, loc), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
+    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, day, month: day.slice(0, 7), ...c };
     if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
     return e;
   });
 }
+
+const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place];
+const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 
 /* ===== API ===== */
 let session = store.get("session");   // {user, pass, admin}
@@ -291,8 +299,8 @@ async function load() {
 async function confirmPrayer(prayer, btn) {
   if (busy) return; busy = true; btn.disabled = true; say("Saving…");
   try {
-    const j = await api({ ...auth(), action: "add", prayer });
-    entries = process([...entries.map(e => [e.at, e.child, e.prayer, e.by]), [j.at, session.user, prayer, session.user]]);
+    const j = await api({ ...auth(), action: "add", prayer, ...here() });
+    entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name]]);
     const e = entries.find(x => x.at === j.at);
     say(e.key === "ontime" ? "Well done! " + prayer + " on time: +1 point" :
         e.key === "dup" ? "Already saved earlier today." :
@@ -306,7 +314,7 @@ async function undo(e, btn) {
   try {
     if (session.admin) await api({ ...auth(), action: "remove", child: e.child, at: e.at });
     else await api({ ...auth(), action: "undo", prayer: e.prayer, child: e.child });
-    entries = process(entries.filter(x => x.at !== e.at).map(x => [x.at, x.child, x.prayer, x.by]));
+    entries = process(entries.filter(x => x.at !== e.at).map(rowOf));
     say("Removed " + e.child + " – " + e.prayer + "."); render();
   } catch (err) { btn.disabled = false; say(err.message, true); }
 }
@@ -338,8 +346,8 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel) {
     if (at < w.start) { msg(prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true); return; }
     ok.disabled = true; msg("Saving…");
     try {
-      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start });
-      entries = process([...entries.map(e => [e.at, e.child, e.prayer, e.by]), [j.at, kid, prayer, session.user]]);
+      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start, ...here() });
+      entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name]]);
       const e = entries.find(x => x.at === j.at && x.child === kid);
       (onDone || render)();
       msg("Saved: " + kid + " – " + prayer + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
@@ -359,6 +367,7 @@ const av = (id, cls) => window.avatar ? window.avatar(id, cls) : icon(kidKind(id
 /* ===== Render ===== */
 function render() {
   const now = Date.now(), tp = parts(now), today = dayKey(tp);
+  $("locname").textContent = LOC.name;
   $("datestr").textContent = new Date().toLocaleDateString("en", { timeZone: PT.TZ, weekday: "long", month: "long", day: "numeric" });
   const nxt = PRAYERS.find(p => windowFor(p, tp).start > now);
   $("nextline").textContent = nxt ? "Next: " + nxt + " at " + fmtT(windowFor(nxt, tp).start) : "All of today's prayers have started";
@@ -515,5 +524,6 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) { re
 <script src="parents.js?v=20261111c"></script>
 <script src="family.js?v=20261111a"></script>
 <script src="activity.js?v=20261112b"></script>
+<script src="location.js?v=20261112a"></script>
 </body>
 </html>
