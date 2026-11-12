@@ -46,8 +46,20 @@ h2{font-family:var(--display);font-weight:400;font-size:20px;margin:0}
 .kidbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--sel)}
 .kidbtn b{font-size:20px;font-family:var(--display);font-weight:400;display:block}
 .kidbtn span.count{font-size:13px;color:var(--muted)}
-.kids.parents .kidbtn{background:var(--surface);border:1px solid var(--line);padding:10px;cursor:default}
-.kids.parents .kidbtn.me{cursor:pointer}
+.kids.parents .kidbtn{padding:10px}
+/* each person has their own colour: their card, and the page background while they're signed in */
+:root{--c-Dad:#2f7d4f;--b-Dad:#dcefe3;--p-Dad:#edf6f0;--c-Mom:#7a4fa3;--b-Mom:#ebe2f5;--p-Mom:#f4f0f9;
+  --c-Yousuf:#2f6f9e;--b-Yousuf:#dbe8f2;--p-Yousuf:#edf3f8;--c-Eva:#c0548a;--b-Eva:#f6e1ec;--p-Eva:#faf0f5}
+@media (prefers-color-scheme:dark){:root{--c-Dad:#6ccf93;--b-Dad:#173324;--p-Dad:#0e1a14;--c-Mom:#b892e0;--b-Mom:#2d2340;--p-Mom:#16121d;
+  --c-Yousuf:#5ea3d6;--b-Yousuf:#1c3344;--p-Yousuf:#0f1922;--c-Eva:#e07fb0;--b-Eva:#3b2232;--p-Eva:#1b1218}}
+.kidbtn[data-who=Dad]{background:var(--b-Dad)}.kidbtn[data-who=Dad][aria-pressed="true"]{border-color:var(--c-Dad)}
+.kidbtn[data-who=Mom]{background:var(--b-Mom)}.kidbtn[data-who=Mom][aria-pressed="true"]{border-color:var(--c-Mom)}
+.kidbtn[data-who=Yousuf]{background:var(--b-Yousuf)}.kidbtn[data-who=Yousuf][aria-pressed="true"]{border-color:var(--c-Yousuf)}
+.kidbtn[data-who=Eva]{background:var(--b-Eva)}.kidbtn[data-who=Eva][aria-pressed="true"]{border-color:var(--c-Eva)}
+.kidbtn[data-who] b{color:var(--fg)}
+.kidbtn[aria-pressed="true"]{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+html[data-user=Dad]{--bg:var(--p-Dad)}html[data-user=Mom]{--bg:var(--p-Mom)}html[data-user=Yousuf]{--bg:var(--p-Yousuf)}html[data-user=Eva]{--bg:var(--p-Eva)}
+html[data-user]{background:var(--bg)}html[data-user] body{background:var(--bg)}
 .kids.parents .kidbtn b{font-size:17px}
 .kids.parents .av{width:40px;height:40px}
 .kidbtn span.count{display:block}
@@ -399,6 +411,7 @@ function render() {
   ["today", "month", "history"].forEach(id => $(id).hidden = !signedIn);
   ["ptabs", "stats", "tracker", "tasks", "requests", "activity"].forEach(id => $(id).hidden = true);
   $("logout").hidden = !signedIn;
+  if (signedIn) document.documentElement.dataset.user = session.user; else delete document.documentElement.dataset.user;
   if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
 
   const admin = !!(session.viewAll || session.admin);   // family view (Dad or Mom)
@@ -435,7 +448,7 @@ function render() {
   const todayPts = id => entries.filter(e => e.child === id && e.day === today).reduce((a, e) => a + e.points, 0);
   if (admin) {
     MEMBERS.forEach(id => {                               // Dad & Mom on top, then the children
-      const parent = !isKidId(id), b = el("button", "kidbtn" + (parent ? " pcard" : "")); b.setAttribute("aria-pressed", String(sel === id));
+      const parent = !isKidId(id), b = el("button", "kidbtn" + (parent ? " pcard" : "")); b.setAttribute("aria-pressed", String(sel === id)); b.dataset.who = id;
       const n = todayPts(id), prayed = entries.filter(e => e.child === id && e.day === today && e.points > 0).length;
       const tx = el("div"); tx.append(el("b", null, id + (id === session.user ? " (you)" : "")),
         el("span", "count", parent ? prayed + " of 5 prayed today" : pts(n) + (n === 1 ? " point" : " points") + " today"));
