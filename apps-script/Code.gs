@@ -209,8 +209,9 @@ function handle_(p) {
   /* ---------- prayers ---------- */
   const sh = logSheet_();
   if (action === 'add' || action === 'undo' || action === 'remove') {
-    const child = isParent ? p.child : user;         // a child can only act for themselves; parents choose the child
-    if (KIDS.indexOf(child) < 0) return bad('Unknown child.');
+    const child = isParent ? (p.child || user) : user; // a child acts only for themselves; a parent for a child or for themselves
+    const ok = KIDS.indexOf(child) >= 0 || child === user || (isAdmin && action === 'remove' && PARENTS.indexOf(child) >= 0);
+    if (!ok) return bad('You can only mark your own prayers or the children\'s.');
     if (action !== 'remove' && PRAYERS.indexOf(p.prayer) < 0) return bad('Unknown prayer.');
     if (action === 'remove' && !isAdmin) return bad('Only Dad can remove entries.');
     return locked_(() => {

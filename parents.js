@@ -27,7 +27,11 @@
   }
 
   // Counting starts on the first day anything was recorded, so days before the family started using the page aren't "missed".
-  const startDay = () => entries.length ? entries.reduce((m, e) => e.day < m ? e.day : m, entries[0].day) : dayKey(parts(Date.now()));
+  // Children: from the family's first record. Dad / Mom: from their own first record (they started later).
+  const startDay = child => {
+    const es = child && !KIDS.some(k => k.id === child) ? entries.filter(e => e.child === child) : entries;
+    return es.length ? es.reduce((m, e) => e.day < m ? e.day : m, es[0].day) : dayKey(parts(Date.now()));
+  };
 
   /* ---------- status of one prayer on one day ---------- */
   function statusOf(child, p, prayer, now) {
@@ -35,7 +39,7 @@
     const e = entries.find(x => x.child === child && x.day === day && x.prayer === prayer && OK.includes(x.key));
     const w = windowFor(prayer, p);
     if (e) return { key: e.key, e, w, day };
-    if (day < startDay()) return { key: "before", w, day };
+    if (day < startDay(child)) return { key: "before", w, day };
     if (now < w.start) return { key: "future", w, day };
     if (now <= w.end) return { key: "open", w, day };
     return { key: "missed", w, day };
@@ -65,18 +69,18 @@
     });
     const per = period(statPeriod);
     box.append(bar, el("p", "note", per.label + ". Weeks run Sunday to Saturday. Counting starts " + dayLabel(startDay().split("-").map(Number)) + "; prayers whose time hasn't ended yet aren't counted as missed."));
-    KIDS.forEach(k => {
+    MEMBERS.map(id => ({ id, kid: KIDS.some(k => k.id === id) })).forEach(k => {
       const st = stats(k.id, per.days), t = st.tot, done = t.ontime + t.late + t.verylate;
       const card = el("div", "scard"), head = el("div", "shead");
       const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "")));
-      head.append(icon(k.kind, "av"), name);
+      head.append(av(k.id, "av"), name);
       const bars = el("div", "sbar");
       [["ontime", "ok"], ["late", "lt"], ["verylate", "vl"], ["missed", "ms"]].forEach(([key, cls]) => {
         if (!t.possible || !t[key]) return; const s = el("span", cls); s.style.flexGrow = t[key]; s.title = key; bars.append(s);
       });
       if (!t.possible) bars.append(el("span", "empty"));
       const nums = el("div", "snums");
-      [["On time", t.ontime, "ok"], ["Late ≤2h", t.late, "lt"], ["Late 2h+", t.verylate, "vl"], ["Missed", t.missed, "ms"], ["Points", pts(st.points), ""], ["Earned", money(st.points * RULES.dollarsPerPoint), "money"]]
+      [["On time", t.ontime, "ok"], ["Late ≤2h", t.late, "lt"], ["Late 2h+", t.verylate, "vl"], ["Missed", t.missed, "ms"], ["Points", pts(st.points), ""], k.kid ? ["Earned", money(st.points * RULES.dollarsPerPoint), "money"] : ["Rate", t.possible ? Math.round(done * 100 / t.possible) + "%" : "–", ""]]
         .forEach(([l, v, c]) => { const d = el("div", "snum " + c); d.append(el("b", null, String(v)), el("span", null, l)); nums.append(d); });
       const tw = el("div", "tablewrap"), tb = el("table", "ptable"), hr = el("tr");
       ["Prayer", "On time", "Late", "Missed", "Rate"].forEach(h => hr.append(el("th", null, h))); tb.append(hr);
@@ -96,7 +100,7 @@
     const box = $("trackerbody"); box.replaceChildren();
     if (!trackKid) trackKid = KIDS[0].id;
     const kids = el("div", "seg");
-    KIDS.forEach(k => { const b = el("button", null, k.id); b.setAttribute("aria-pressed", String(trackKid === k.id)); b.onclick = () => { trackKid = k.id; trackSel = null; renderTracker(); }; kids.append(b); });
+    MEMBERS.forEach(id => { const b = el("button", null, id); b.setAttribute("aria-pressed", String(trackKid === id)); b.onclick = () => { trackKid = id; trackSel = null; renderTracker(); }; kids.append(b); });
     const months = el("div", "seg");
     [[false, "This month"], [true, "Last month"]].forEach(([v, t]) => { const b = el("button", null, t); b.setAttribute("aria-pressed", String(trackLastMonth === v)); b.onclick = () => { trackLastMonth = v; trackSel = null; renderTracker(); }; months.append(b); });
     const legend = el("div", "legend");
@@ -134,7 +138,8 @@
     const label = s.e ? s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
       : s.key === "missed" ? "Not prayed (missed)" : s.key === "before" ? "Before tracking started" : s.key === "open" ? "Time is open now (until " + fmtT(s.w.end) + ")" : "Not due yet (starts " + fmtT(s.w.start) + ")";
     card.append(el("b", null, child + " · " + prayer + " · " + dayLabel(d)), el("div", "note", "Adhan " + fmtT(s.w.start) + " · " + label));
-    if (!s.e && (s.key === "missed" || s.key === "open") && window.markForm) {   // forgot to mark? allowed for 24 hours only
+    const isKid = KIDS.some(k => k.id === child);
+    if (!s.e && (s.key === "missed" || s.key === "open") && window.markForm && (isKid || child === session.user)) {   // forgot to mark? allowed for 24 hours only
       if (window.canMark(s.w)) {
         const st = el("div", "status"), b = el("button", "primary", "Mark prayed");
         const msg = (m, err) => { st.className = "status" + (err ? " err" : ""); st.textContent = m; };
@@ -142,7 +147,7 @@
         card.append(b, st);
       } else card.append(el("div", "note", "More than 24 hours have passed since this prayer's time, so it can't be marked anymore."));
     }
-    card.append(noteEditor(child, s.day, prayer, n));
+    if (isKid) card.append(noteEditor(child, s.day, prayer, n));
     return card;
   }
 

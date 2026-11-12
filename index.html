@@ -232,6 +232,9 @@ const fmtD = ms => new Date(ms).toLocaleDateString("en", { timeZone: PT.TZ, week
 const money = n => "$" + (Math.round(n * 100) / 100).toFixed(2);
 const pts = n => (Math.round(n * 100) / 100).toString();
 const kidKind = id => (KIDS.find(k => k.id === id) || {}).kind || "boy";
+const PARENTS = ["Dad", "Mom"];                                   // parents' own prayers are counted too (no money)
+const MEMBERS = [...KIDS.map(k => k.id), ...PARENTS];
+const isKidId = id => KIDS.some(k => k.id === id);
 
 /* Prayer-time location: chosen on this device (GPS or a city). Each saved prayer keeps the place it was prayed at. */
 const TORONTO = { name: "Toronto", lat: 43.6532, lng: -79.3832 };
@@ -388,7 +391,9 @@ function render() {
 
   const admin = !!(session.viewAll || session.admin);   // family view (Dad or Mom)
   const canRemove = !!session.admin;                      // only Dad removes entries
+  if (admin && !MEMBERS.includes(sel)) sel = KIDS[0].id;
   const kid = admin ? sel : session.user;
+  const otherParent = admin && !isKidId(kid) && kid !== session.user;   // Mom looking at Dad's prayers (or the other way): view only
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
   $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (parent)" : "") + ".";
   // tabs – Dad / Mom: Today · Stats · Tracker · Tasks · Requests;  children: Prayers · Tasks · Requests
@@ -415,20 +420,15 @@ function render() {
   const hello = $("hello"); hello.replaceChildren();
   const kb = $("kidbtns"); kb.replaceChildren(); kb.hidden = !admin; hello.hidden = admin;
   const pc = $("parentcards"); pc.replaceChildren(); pc.hidden = !admin;
-  if (admin) ["Dad", "Mom"].forEach(u => {                 // parents' profiles: photo, role, what they did today
-    const mine = u === session.user, c = el(mine ? "button" : "div", "kidbtn pcard" + (mine ? " me" : ""));
-    const marked = entries.filter(e => e.by === u && e.child !== u && e.day === today).length;
-    const tx = el("div"); tx.append(el("b", null, u), el("span", "count", (u === "Dad" ? "Admin" : "Parent") + " · marked " + marked + " today"));
-    if (mine) { tx.append(el("span", "count edit", "✎ My photo")); c.onclick = () => window.openPhotos && window.openPhotos(); c.setAttribute("aria-label", u + " profile – change my photo"); }
-    c.append(av(u, "av"), tx); pc.append(c);
-  });
   const todayPts = id => entries.filter(e => e.child === id && e.day === today).reduce((a, e) => a + e.points, 0);
   if (admin) {
-    KIDS.forEach(k => {
-      const b = el("button", "kidbtn"); b.setAttribute("aria-pressed", String(sel === k.id));
-      const tx = el("div"); tx.append(el("b", null, k.id), el("span", "count", pts(todayPts(k.id)) + (todayPts(k.id) === 1 ? " point" : " points") + " today"));
-      b.append(av(k.id, "av"), tx); b.onclick = () => { sel = k.id; store.set("selkid", sel); say(""); render(); };
-      kb.append(b);
+    MEMBERS.forEach(id => {                               // Dad & Mom on top, then the children
+      const parent = !isKidId(id), b = el("button", "kidbtn" + (parent ? " pcard" : "")); b.setAttribute("aria-pressed", String(sel === id));
+      const n = todayPts(id), prayed = entries.filter(e => e.child === id && e.day === today && e.points > 0).length;
+      const tx = el("div"); tx.append(el("b", null, id + (id === session.user ? " (you)" : "")),
+        el("span", "count", parent ? prayed + " of 5 prayed today" : pts(n) + (n === 1 ? " point" : " points") + " today"));
+      b.append(av(id, "av"), tx); b.onclick = () => { sel = id; store.set("selkid", sel); say(""); render(); };
+      (parent ? pc : kb).append(b);
     });
   } else {
     const tx = el("div"); tx.append(el("b", null, "Today: " + pts(todayPts(kid)) + (todayPts(kid) === 1 ? " point" : " points")), el("div", "note", "Tap Prayed right after you pray."));
@@ -452,8 +452,10 @@ function render() {
       if (canRemove || (now - done.at < UNDO_MINUTES * 60000 && (!admin || done.by === session.user))) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
     } else if (now < w.start) {
       right.append(el("span", "chip", "Opens " + fmtT(w.start)));
+    } else if (otherParent) {
+      right.append(el("span", "chip", now > w.end ? "Not marked" : "Not yet"));
     } else if (admin) {
-      const b = el("button", "primary markb", "Mark prayed");
+      const b = el("button", "primary markb", kid === session.user ? "Prayed" : "Mark prayed");
       b.onclick = () => openMark(p, kid, w, right);
       right.append(b);
     } else {
@@ -461,7 +463,7 @@ function render() {
       const b = el("button", "primary" + (late ? " lateb" : ""), late ? "Prayed (late)" : "Prayed");
       b.onclick = () => confirmPrayer(p, b); right.append(b);
     }
-    if (admin && window.openNote) {
+    if (admin && window.openNote && isKidId(kid)) {
       const n = window.noteFor && window.noteFor(kid, today, p);
       const nb = el("button", "notebtn", n ? "✎ Edit note" : "+ Note"); nb.onclick = () => window.openNote(kid, tp, p); extra.append(nb);
       if (n) extra.append(el("div", "pnote", "✎ " + n.text));
@@ -474,7 +476,7 @@ function render() {
   $("monthtitle").textContent = new Date(Date.UTC(mp[0], mp[1] - 1, 15)).toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "UTC" });
   $("monthtoggle").textContent = showLastMonth ? "This month" : "Last month";
   const mb = $("monthbody"); mb.replaceChildren();
-  const kidsShown = admin ? KIDS.map(k => k.id) : [kid];
+  const kidsShown = admin ? MEMBERS : [kid];
   const sum = id => { const es = entries.filter(e => e.child === id && e.month === mk);
     const p = es.reduce((a, e) => a + e.points, 0);
     return { on: es.filter(e => e.key === "ontime").length, late: es.filter(e => e.key === "late" || e.key === "verylate").length, p, d: p * RULES.dollarsPerPoint }; };
@@ -486,7 +488,7 @@ function render() {
     const tw = el("div", "tablewrap"), t = el("table"), hr = el("tr");
     ["Child", "On time", "Late", "Points", "Amount"].forEach(h => hr.append(el("th", null, h))); t.append(hr);
     kidsShown.forEach(id => { const s = sum(id), tr = el("tr");
-      tr.append(el("td", null, id), el("td", null, String(s.on)), el("td", null, String(s.late)), el("td", null, pts(s.p)), el("td", "money", money(s.d))); t.append(tr); });
+      tr.append(el("td", null, id), el("td", null, String(s.on)), el("td", null, String(s.late)), el("td", null, pts(s.p)), el("td", "money", isKidId(id) ? money(s.d) : "–")); t.append(tr); });
     tw.append(t); mb.append(tw);
   }
 
