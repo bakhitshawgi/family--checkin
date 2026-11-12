@@ -1,4 +1,4 @@
-/* Sign-in activity: every sign-in / app open is reported to the sheet; only Dad (admin) can see the Activity tab.
+/* Sign-in activity of the children: every sign-in / app open is reported to the sheet (Mom's and Dad's are not recorded); only Dad (admin) can see the Activity tab.
    Uses the shared state from index.html: session, el, api, auth, store, fmtD, fmtT. */
 (function () {
   const $ = id => document.getElementById(id);
@@ -31,7 +31,7 @@
     return {};
   }
   window.reportVisit = async function (event) {
-    if (!session) return;
+    if (!session || !KIDS.some(k => k.id === session.user)) return;   // only the children's activity is recorded
     const now = Date.now();
     if (event !== "login" && now - (store.get("lastVisit") || 0) < OPEN_EVERY_MS) return;
     store.set("lastVisit", now);
@@ -62,9 +62,9 @@
     });
     const ref = el("button", "ghost", "Refresh"); ref.onclick = () => window.renderActivity(true);
     top.append(seg, ref); box.append(top);
-    box.append(el("p", "note", "Only you (Dad) can see this. Place is approximate – it comes from the internet provider, not GPS."));
+    box.append(el("p", "note", "Yousuf and Eva only. Only you (Dad) can see this. Place is approximate – it comes from the internet provider, not GPS."));
 
-    const users = ["Yousuf", "Eva", "Mom", "Dad"];
+    const users = KIDS.map(k => k.id);
     users.forEach(u => {
       const vs = data.filter(v => v.user === u), c = el("div", "acard"), head = el("div", "fhead");
       head.append(window.avatar ? window.avatar(u, "av sm") : el("span"), el("b", "aname", u));
