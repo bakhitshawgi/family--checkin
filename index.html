@@ -164,6 +164,11 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
     <div id="requestsbody" class="fambody"></div>
   </section>
 
+  <section class="panel" id="activity" hidden>
+    <h2>Sign-in activity</h2>
+    <div id="activitybody" class="fambody"></div>
+  </section>
+
   <p class="foot"><span id="whoami"></span> <button id="photobtn" hidden>My photo</button> <button id="logout" hidden>Sign out</button></p>
 </div>
 
@@ -361,7 +366,7 @@ function render() {
   const signedIn = !!session;
   $("login").hidden = signedIn;
   ["today", "month", "history"].forEach(id => $(id).hidden = !signedIn);
-  ["ptabs", "stats", "tracker", "tasks", "requests"].forEach(id => $(id).hidden = true);
+  ["ptabs", "stats", "tracker", "tasks", "requests", "activity"].forEach(id => $(id).hidden = true);
   $("logout").hidden = !signedIn; $("photobtn").hidden = !signedIn;
   if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
 
@@ -371,7 +376,7 @@ function render() {
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
   $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (parent)" : "") + ".";
   // tabs – Dad / Mom: Today · Stats · Tracker · Tasks · Requests;  children: Prayers · Tasks · Requests
-  const TABS = admin ? [["today", "Today"], ["stats", "Stats"], ["tracker", "Tracker"], ["tasks", "Tasks"], ["requests", "Requests"]]
+  const TABS = admin ? [["today", "Today"], ["stats", "Stats"], ["tracker", "Tracker"], ["tasks", "Tasks"], ["requests", "Requests"]].concat(canRemove ? [["activity", "Activity"]] : [])
                      : [["today", "Prayers"], ["tasks", "Tasks"], ["requests", "Requests"]];
   let tab = store.get("ptab") || "today"; if (!TABS.some(t => t[0] === tab)) tab = "today";
   const nav = $("ptabs"); nav.hidden = false; nav.replaceChildren();
@@ -385,6 +390,7 @@ function render() {
     $(tab).hidden = false;
     if (!loaded) $(tab + "body").replaceChildren(el("p", "note", "Loading…"));
     else if (tab === "tasks" || tab === "requests") { if (window.renderFamily) window.renderFamily(tab); }
+    else if (tab === "activity") { if (window.renderActivity) window.renderActivity(); }
     else if (window.renderParents) window.renderParents(tab);
     return;
   }
@@ -482,6 +488,7 @@ $("loginbtn").onclick = async () => {
     const j = await api({ user, pass, action: "login" });
     session = { user, pass, admin: !!j.admin, viewAll: !!j.viewAll }; store.set("session", session);
     $("pass").value = ""; $("loginstatus").textContent = ""; loaded = false; render(); load();
+    if (window.reportVisit) window.reportVisit("login");
   } catch (e) { $("loginstatus").className = "status err"; $("loginstatus").textContent = e.message; }
 };
 $("pass").addEventListener("keydown", e => { if (e.key === "Enter") $("loginbtn").click(); });
@@ -494,16 +501,19 @@ $("photobtn").onclick = () => window.openPhotos && window.openPhotos();
   if (h.get("u") && h.get("k")) {
     history.replaceState(null, "", location.pathname + location.search);   // hide the password from the address bar
     try { const j = await api({ user: h.get("u"), pass: h.get("k"), action: "login" });
-      session = { user: h.get("u"), pass: h.get("k"), admin: !!j.admin, viewAll: !!j.viewAll }; store.set("session", session); }
+      session = { user: h.get("u"), pass: h.get("k"), admin: !!j.admin, viewAll: !!j.viewAll }; store.set("session", session);
+      setTimeout(() => window.reportVisit && window.reportVisit("login"), 0); }
     catch (e) { $("loginstatus").className = "status err"; $("loginstatus").textContent = "This personal link didn't work: " + e.message; }
   }
   render(); load();
+  setTimeout(() => window.reportVisit && window.reportVisit("open"), 0);   // counted at most once every 30 min
 })();
 setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
 <script src="parents.js?v=20261111c"></script>
 <script src="family.js?v=20261111a"></script>
+<script src="activity.js?v=20261112a"></script>
 </body>
 </html>

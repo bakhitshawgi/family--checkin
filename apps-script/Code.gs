@@ -11,6 +11,7 @@
  *   Requests – ID | Created | Child | Text | Audio ID | Status | Decided by | Decided | Reply
  *   Audio    – voice requests, split into chunks: ID | Part | Mime | Data
  *   Profiles – User | Photo | Updated
+ *   Visits   – Time | User | Event | IP | City | Region | Country | Device | Browser | User agent  (Dad only)
  */
 
 // Change these passwords before you deploy.
@@ -183,6 +184,25 @@ function handle_(p) {
     const parts = an < 2 ? [] : as.getRange(2, 1, an - 1, 4).getValues().filter(r => r[0] === p.id).sort((a, b) => a[1] - b[1]);
     if (!parts.length) return bad('Recording not found.');
     return { ok: true, audio: 'data:' + parts[0][2] + ';base64,' + parts.map(r => r[3]).join('') };
+  }
+
+  /* ---------- sign-in activity (only Dad can read it) ---------- */
+  const VISIT_HEAD = ['Time', 'User', 'Event', 'IP', 'City', 'Region', 'Country', 'Device', 'Browser', 'User agent'];
+  if (action === 'visit') {                          // the page reports each sign-in / app open
+    const s = v => String(v || '').slice(0, 120);
+    return locked_(() => {
+      sheet_('Visits', VISIT_HEAD).appendRow([new Date(), user, p.event === 'login' ? 'Sign-in' : 'Opened', s(p.ip), s(p.city), s(p.region), s(p.country), s(p.device), s(p.browser), String(p.ua || '').slice(0, 300)]);
+      return { ok: true };
+    });
+  }
+  if (action === 'visits') {
+    if (!isAdmin) return bad('Only Dad can see this.');
+    const since = Number(p.since || 0), vs = sheet_('Visits', VISIT_HEAD), vl = vs.getLastRow();
+    const from = Math.max(2, vl - 1999);               // newest 2000 at most
+    const visits = vl < 2 ? [] : vs.getRange(from, 1, vl - from + 1, 9).getValues()
+      .filter(r => r[0] instanceof Date && r[0].getTime() >= since)
+      .map(r => [r[0].getTime()].concat(r.slice(1).map(String)));
+    return { ok: true, visits: visits };
   }
 
   /* ---------- prayers ---------- */
