@@ -251,7 +251,18 @@ function handle_(p) {
   /* ---------- list: everything the page shows ---------- */
   const since = Number(p.since || 0);
   const last = sh.getLastRow();
-  const rows = last < 2 ? [] : sh.getRange(2, 1, last - 1, 8).getValues()
+  const logVals = last < 2 ? [] : sh.getRange(2, 1, last - 1, 8).getValues();
+  // Brother / sister card for a child: only how many of today's prayers the other child has prayed – no times, no details.
+  let siblings = [];
+  if (!isParent) {
+    const todayStr = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+    siblings = KIDS.filter(k => k !== user).map(k => {
+      const done = {};
+      logVals.forEach(r => { if (r[1] === k && r[0] instanceof Date && PRAYERS.indexOf(r[2]) >= 0 && Utilities.formatDate(r[0], TZ, 'yyyy-MM-dd') === todayStr) done[r[2]] = 1; });
+      return { id: k, today: Object.keys(done).length };
+    });
+  }
+  const rows = logVals
     .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (isParent || r[1] === user))
     .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1]), r[4] === '' ? '' : Number(r[4]), r[5] === '' ? '' : Number(r[5]), String(r[6] || ''), String(r[7] || '')]);
   let notes = [];
@@ -274,7 +285,7 @@ function handle_(p) {
                  status: String(r[5] || 'pending'), decidedBy: String(r[6] || ''), decided: ms_(r[7]), reply: String(r[8] || '') }));
   const pf = sheet_('Profiles', ['User', 'Photo', 'Updated']), pl = pf.getLastRow();
   const photosAt = pl < 2 ? 0 : Math.max.apply(null, pf.getRange(2, 3, pl - 1, 1).getValues().map(r => ms_(r[0])));
-  return { ok: true, user: user, admin: isAdmin, viewAll: isParent, rows: rows, notes: notes, tasks: tasks, requests: requests,
+  return { ok: true, user: user, admin: isAdmin, viewAll: isParent, rows: rows, notes: notes, tasks: tasks, requests: requests, siblings: siblings,
            taskTypes: TASK_TYPES, photosAt: photosAt, now: Date.now() };
 }
 
