@@ -35,20 +35,73 @@
     if (!at || at === store.get("photosAt")) return;
     try { const j = await api({ ...auth(), action: "photos" }); photos = j.photos || {}; store.set("photos", photos); store.set("photosAt", at); render(); } catch (e) {}
   };
-  function resize(file) {
+  /* Crop: after picking a picture, drag to move it, pinch / slider / mouse wheel to zoom, rotate; the circle shows the avatar.
+     Resolves with a small square JPEG (data URL), or null if cancelled. */
+  function cropPhoto(file, who) {
     return new Promise((res, rej) => {
       const url = URL.createObjectURL(file), img = new Image();
-      img.onload = () => {
-        let out = "";
-        for (const [S, q] of [[240, .82], [200, .7], [160, .6]]) {
-          const c = document.createElement("canvas"); c.width = c.height = S;
-          const m = Math.min(img.naturalWidth, img.naturalHeight);
-          c.getContext("2d").drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, S, S);
-          out = c.toDataURL("image/jpeg", q); if (out.length < 40000) break;
-        }
-        URL.revokeObjectURL(url); res(out);
-      };
       img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Couldn't read that picture. Try another one.")); };
+      img.onload = () => {
+        const V = Math.max(200, Math.min(300, window.innerWidth - 72)), dpr = Math.min(2, window.devicePixelRatio || 1);
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        let r = 0, z = 1, px = 0, py = 0;
+        const dims = () => (r % 2 ? [ih, iw] : [iw, ih]);
+        const base = () => { const [W, H] = dims(); return V / Math.min(W, H); };
+        const clamp = () => { const [W, H] = dims(), sc = base() * z, mx = Math.max(0, (W * sc - V) / 2), my = Math.max(0, (H * sc - V) / 2);
+          px = Math.max(-mx, Math.min(mx, px)); py = Math.max(-my, Math.min(my, py)); };
+        function paint(ctx, size) {               // draw the current view into a size×size square
+          const k = size / V, sc = base() * z * k;
+          ctx.save(); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, size, size);
+          ctx.translate(size / 2 + px * k, size / 2 + py * k); ctx.rotate(r * Math.PI / 2); ctx.scale(sc, sc);
+          ctx.drawImage(img, -iw / 2, -ih / 2); ctx.restore();
+        }
+        const cv = document.createElement("canvas"); cv.width = cv.height = Math.round(V * dpr); cv.style.width = cv.style.height = V + "px";
+        const ctx = cv.getContext("2d");
+        const draw = () => { clamp(); paint(ctx, cv.width); };
+
+        const ov = el("div", "nov cropov"), card = el("div", "novcard");
+        const box = el("div", "cropbox"); box.style.width = box.style.height = V + "px"; box.append(cv, el("div", "cropmask"));
+        const zoom = document.createElement("input"); zoom.type = "range"; zoom.min = "1"; zoom.max = "5"; zoom.step = "0.01"; zoom.value = "1"; zoom.className = "cropzoom"; zoom.setAttribute("aria-label", "Zoom");
+        const setZoom = nz => { nz = Math.max(1, Math.min(5, nz)); px *= nz / z; py *= nz / z; z = nz; zoom.value = String(z); draw(); };
+        zoom.oninput = () => setZoom(Number(zoom.value));
+        const rot = el("button", "ghost", "⟳ Rotate"); rot.onclick = () => { r = (r + 1) % 4; px = py = 0; draw(); };
+        const reset = el("button", "ghost", "Reset"); reset.onclick = () => { r = 0; px = py = 0; setZoom(1); };
+        const ok = el("button", "primary", "Use photo"), cancel = el("button", "ghost", "Cancel");
+        const done = v => { URL.revokeObjectURL(url); ov.remove(); res(v); };
+        cancel.onclick = () => done(null);
+        ok.onclick = () => {
+          let out = "";
+          for (const [S, q] of [[240, .85], [220, .75], [200, .65], [160, .6]]) {
+            const c = document.createElement("canvas"); c.width = c.height = S; paint(c.getContext("2d"), S);
+            out = c.toDataURL("image/jpeg", q); if (out.length < 40000) break;
+          }
+          done(out);
+        };
+        // drag to move, two fingers to zoom, mouse wheel to zoom
+        const pts = new Map(); let pinch = 0;
+        box.addEventListener("pointerdown", e => { box.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); pinch = 0; });
+        box.addEventListener("pointermove", e => {
+          if (!pts.has(e.pointerId)) return;
+          const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+          if (pts.size === 1) { px += e.clientX - prev[0]; py += e.clientY - prev[1]; draw(); }
+          else if (pts.size === 2) { const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) setZoom(z * d / pinch); pinch = d; }
+        });
+        const up = e => { pts.delete(e.pointerId); pinch = 0; };
+        box.addEventListener("pointerup", up); box.addEventListener("pointercancel", up);
+        box.addEventListener("wheel", e => { e.preventDefault(); setZoom(z * Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+        box.tabIndex = 0; box.setAttribute("aria-label", "Photo position. Arrow keys move, plus and minus zoom.");
+        box.addEventListener("keydown", e => {
+          const m = { ArrowLeft: [-8, 0], ArrowRight: [8, 0], ArrowUp: [0, -8], ArrowDown: [0, 8] }[e.key];
+          if (m) { px += m[0]; py += m[1]; draw(); e.preventDefault(); }
+          if (e.key === "+" || e.key === "=") setZoom(z * 1.1); if (e.key === "-") setZoom(z / 1.1);
+        });
+        const zl = el("div", "zoomrow"); zl.append(el("span", "note", "−"), zoom, el("span", "note", "+"));
+        const tools = el("div", "right left"); tools.append(rot, reset);
+        const btns = el("div", "right"); btns.append(cancel, ok);
+        card.append(el("h2", null, who ? (who === session.user ? "Your photo" : who + "'s photo") : "Crop photo"),
+          el("p", "note", "Drag to move. Pinch or use the slider to zoom. The circle is what everyone will see."), box, zl, tools, btns);
+        ov.append(card); document.body.append(ov); draw();
+      };
       img.src = url;
     });
   }
@@ -69,8 +122,10 @@
       if (photos[u]) { const rm = el("button", "ghost", "Remove"); rm.onclick = () => savePhoto(u, "", st); btns.append(rm); }
       inp.onchange = async () => {
         const f = inp.files && inp.files[0]; if (!f) return;
-        setMsg(st, "Uploading…");
-        try { savePhoto(u, await resize(f), st); } catch (e) { setMsg(st, e.message, true); }
+        try {
+          const data = await cropPhoto(f, u); inp.value = "";
+          if (data) savePhoto(u, data, st); else setMsg(st, "");
+        } catch (e) { setMsg(st, e.message, true); }
       };
       const line = el("div", "phline"); line.append(window.avatar(u, "av big"), name, btns);
       row.append(line, st); card.append(row);
@@ -358,6 +413,15 @@
   .recb{background:var(--surface);border:1px solid var(--line);color:var(--fg)}.recb.on{background:var(--late);color:#fff;border-color:var(--late)}
   .aud{width:100%;max-width:320px;height:40px}
   .phhead{display:flex;justify-content:space-between;align-items:center}
+  .cropov{z-index:60;align-items:center}
+  .cropov .novcard{align-items:center;max-width:380px}
+  .cropov .novcard > .note,.cropov .novcard > h2{align-self:stretch}
+  .cropbox{position:relative;border-radius:12px;overflow:hidden;touch-action:none;cursor:grab;background:#222;flex:none}
+  .cropbox:active{cursor:grabbing}.cropbox canvas{display:block}
+  .cropmask{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle closest-side,transparent 99%,rgba(0,0,0,.5) 100%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+  .cropmask::after{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.9)}
+  .zoomrow{display:flex;align-items:center;gap:8px;align-self:stretch}.cropzoom{flex:1;padding:0;border:0;background:none;accent-color:var(--accent)}
+  .cropov .right{align-self:stretch}
   .phrow{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
   .phline{display:flex;align-items:center;gap:12px}.phline b{flex:1;min-width:0}
   .phpick{display:inline-flex;flex-direction:row;align-items:center;background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer}
