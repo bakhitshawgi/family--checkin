@@ -423,6 +423,10 @@ function photoAv(id) {
     a.setAttribute("aria-label", "Change " + (id === session.user ? "my" : id + "'s") + " photo");
     const go = e => { e.stopPropagation(); e.preventDefault(); window.openPhotos(id); };
     a.addEventListener("click", go); a.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") go(e); });
+  } else if (a.querySelector("img") && window.viewPhoto) {            // someone else's photo: tap to see it bigger
+    a.classList.add("zoomable"); a.setAttribute("role", "button"); a.tabIndex = 0; a.setAttribute("aria-label", "View " + id + "'s photo");
+    const view = e => { e.stopPropagation(); e.preventDefault(); window.viewPhoto(id); };
+    a.addEventListener("click", view); a.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") view(e); });
   }
   return a;
 }
@@ -599,7 +603,7 @@ setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
 <script src="parents.js?v=20261113a"></script>
-<script src="family.js?v=20261113a"></script>
+<script src="family.js?v=20261113b"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>
 <script src="wisdom.js?v=20261112a"></script>

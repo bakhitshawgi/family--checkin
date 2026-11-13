@@ -57,7 +57,9 @@
         }
         const cv = document.createElement("canvas"); cv.width = cv.height = Math.round(V * dpr); cv.style.width = cv.style.height = V + "px";
         const ctx = cv.getContext("2d");
-        const draw = () => { clamp(); paint(ctx, cv.width); };
+        const pv = el("div", "croppv"), pvs = [96, 48, 32].map(sz => {
+          const c = document.createElement("canvas"); c.width = c.height = Math.round(sz * dpr); c.style.width = c.style.height = sz + "px"; pv.append(c); return c; });
+        const draw = () => { clamp(); paint(ctx, cv.width); pvs.forEach(c => paint(c.getContext("2d"), c.width)); };
 
         const ov = el("div", "nov cropov"), card = el("div", "novcard");
         const box = el("div", "cropbox"); box.style.width = box.style.height = V + "px"; box.append(cv, el("div", "cropmask"));
@@ -99,7 +101,8 @@
         const tools = el("div", "right left"); tools.append(rot, reset);
         const btns = el("div", "right"); btns.append(cancel, ok);
         card.append(el("h2", null, who ? (who === session.user ? "Your photo" : who + "'s photo") : "Crop photo"),
-          el("p", "note", "Drag to move. Pinch or use the slider to zoom. The circle is what everyone will see."), box, zl, tools, btns);
+          el("p", "note", "Drag to move. Pinch or use the slider to zoom. The circle is what everyone will see."), box, zl, tools,
+          el("b", "pvlabel", "Preview"), pv, btns);
         ov.append(card); document.body.append(ov); draw();
       };
       img.src = url;
@@ -127,11 +130,29 @@
           if (data) savePhoto(u, data, st); else setMsg(st, "");
         } catch (e) { setMsg(st, e.message, true); }
       };
+      if (only) {                                   // one person: big preview on top
+        const big = window.avatar(u, "av huge");
+        if (photos[u]) { big.classList.add("zoomable"); big.setAttribute("role", "button"); big.tabIndex = 0; big.setAttribute("aria-label", "View " + u + "'s photo");
+          big.onclick = () => window.viewPhoto(u); big.onkeydown = e => { if (e.key === "Enter" || e.key === " ") window.viewPhoto(u); }; }
+        const bigwrap = el("div", "phbig"); bigwrap.append(big, el("b", null, u === session.user ? u + " (you)" : u), el("span", "note", photos[u] ? "Tap the photo to see it bigger" : "No photo yet"));
+        btns.classList.add("center"); row.append(bigwrap, btns, st); card.append(row); return;
+      }
       const line = el("div", "phline"); line.append(window.avatar(u, "av big"), name, btns);
       row.append(line, st); card.append(row);
     });
     ov.append(card); document.body.append(ov);
     ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  };
+  window.viewPhoto = function (u) {
+    if (!photos[u]) return;
+    const ov = el("div", "nov photoview"), card = el("div", "pvcard"), img = new Image();
+    img.src = photos[u]; img.alt = u + "'s photo";
+    const close = el("button", "ghost", "Close"); close.onclick = () => ov.remove();
+    const btns = el("div", "right"); btns.append(close);
+    if (window.canEditPhoto(u)) { const ch = el("button", "primary", "📷 Change"); ch.onclick = () => { ov.remove(); window.openPhotos(u); }; btns.prepend(ch); }
+    card.append(el("h2", null, u), img, btns); ov.append(card); document.body.append(ov);
+    ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+    document.addEventListener("keydown", function esc(e) { if (e.key === "Escape") { ov.remove(); document.removeEventListener("keydown", esc); } });
   };
   async function savePhoto(u, data, st) {
     setMsg(st, data ? "Uploading…" : "Removing…");
@@ -422,6 +443,19 @@
   .cropmask::after{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.9)}
   .zoomrow{display:flex;align-items:center;gap:8px;align-self:stretch}.cropzoom{flex:1;padding:0;border:0;background:none;accent-color:var(--accent)}
   .cropov .right{align-self:stretch}
+  .pvlabel{align-self:stretch;font-size:13px;color:var(--muted);font-weight:600}
+  .croppv{display:flex;align-items:center;gap:14px;align-self:stretch}
+  .croppv canvas{border-radius:50%;box-shadow:0 0 0 1px var(--line);background:#fff}
+  .av.huge{width:160px;height:160px}.av.huge.initial{font-size:64px}
+  .avatar.zoomable{cursor:zoom-in}
+  .phbig{display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0 4px}
+  .phbig b{font-family:var(--display);font-weight:400;font-size:20px}
+  .right.center{justify-content:center}
+  .photoview{align-items:center;z-index:70;background:rgba(0,0,0,.75)}
+  .pvcard{background:var(--surface);border-radius:18px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:360px}
+  .pvcard h2{align-self:flex-start}
+  .pvcard img{width:100%;max-width:320px;aspect-ratio:1;object-fit:cover;border-radius:50%;display:block;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+  .pvcard .right{align-self:stretch;justify-content:center}
   .phrow{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid var(--line)}
   .phline{display:flex;align-items:center;gap:12px}.phline b{flex:1;min-width:0}
   .phpick{display:inline-flex;flex-direction:row;align-items:center;background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer}
