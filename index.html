@@ -175,6 +175,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
       <li>On time (before the next prayer starts; Isha until midnight): 1 point</li>
       <li>Late, up to 2 hours after that: ½ point</li>
       <li>More than 2 hours late: ¼ point</li>
+      <li>Jumu'ah counts double: 2 points on time</li>
       <li>1 point = $0.25</li>
     </ul>
   </section>
@@ -217,7 +218,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
 <script>
 /* ===== Settings ===== */
 const CONFIG = { scriptUrl: "https://script.google.com/macros/s/AKfycbwUy58Rh6waff-ylUi3tFNydKCKtES9JDuwuaFN-JAzCMw2luEi7tuwmQqhSPRwVnKg5g/exec" };      // Google Apps Script web-app URL (…/exec)
-const RULES = { onTime: 1, late: 0.5, veryLate: 0.25, lateHours: 2, dollarsPerPoint: 0.25 };
+const RULES = { onTime: 1, late: 0.5, veryLate: 0.25, lateHours: 2, dollarsPerPoint: 0.25, jumuah: 2 };   // jumuah: Friday prayer counts double
 const KIDS = [{ id: "Yousuf", kind: "boy" }, { id: "Eva", kind: "girl" }];
 const PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const NEXT_END = { Fajr: "sunrise", Dhuhr: "asr", Asr: "maghrib", Maghrib: "isha" };
@@ -300,6 +301,7 @@ function process(rows) {
     const loc = lat !== "" && lat != null && !isNaN(+lat) && lat !== 0 ? { lat: +lat, lng: +lng, name: place || "" } : TORONTO;   // older rows: Toronto
     const c = classify(at, prayer, loc), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
     let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", day, month: day.slice(0, 7), ...c };
+    if (e.jumuah) e.points *= RULES.jumuah;
     if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
     return e;
   });
@@ -351,7 +353,7 @@ async function confirmPrayer(prayer, btn, kind) {
     const j = await api({ ...auth(), action: "add", prayer, kind: kind || "", ...here() });
     entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind || ""]]);
     const e = entries.find(x => x.at === j.at), nm = pname(e);
-    say(e.key === "ontime" ? "Well done! " + nm + " on time: +1 point" :
+    say(e.key === "ontime" ? "Well done! " + nm + " on time: +" + pts(e.points) + (e.points === 1 ? " point" : " points") :
         e.key === "dup" ? "Already saved earlier today." :
         nm + " saved as " + e.label.toLowerCase() + ": +" + pts(e.points) + " point");
     render();
