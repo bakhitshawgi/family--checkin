@@ -89,6 +89,9 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .markform label{flex-basis:100%;font-size:13px}
 .markform .primary{min-width:90px;min-height:40px}
 .markb{min-width:0}
+.kindsel{width:auto;padding:8px}
+.right.wide{grid-column:1/-1;justify-content:flex-start}
+.right.two{display:grid;grid-template-columns:1fr 1fr}
 .pextra{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:8px;border-top:1px solid var(--line)}
 .pextra .learnwide{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--accent);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
 .pextra .learnwide svg{width:16px;height:16px}
@@ -275,16 +278,20 @@ function classify(at, prayer, loc) {
 /* rows: [ms, child, prayer] -> entries with status; duplicates (same day/child/prayer) count once */
 function process(rows) {
   const seen = {};
-  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place]) => {
+  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place, kind]) => {
     const loc = lat !== "" && lat != null && !isNaN(+lat) && lat !== 0 ? { lat: +lat, lng: +lng, name: place || "" } : TORONTO;   // older rows: Toronto
     const c = classify(at, prayer, loc), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
-    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, day, month: day.slice(0, 7), ...c };
+    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", day, month: day.slice(0, 7), ...c };
     if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
     return e;
   });
 }
 
-const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place];
+const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place, e.jumuah ? "Jumuah" : ""];
+// Friday: Dhuhr can be prayed as Jumu'ah (same time window, same points)
+const isFriday = p => new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() === 5;
+const jumuahDay = (prayer, p) => prayer === "Dhuhr" && isFriday(p);
+const pname = e => e.jumuah ? "Jumu'ah" : e.prayer;
 const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 
 /* ===== API ===== */
@@ -304,7 +311,7 @@ const auth = () => ({ user: session.user, pass: session.pass });
 
 async function load() {
   if (!session) return;
-  const since = Date.now() - 70 * 86400e3;
+  const since = Date.now() - 400 * 86400e3;           // about a year back, for browsing past days / weeks / months
   try {
     const j = await api({ ...auth(), action: "list", since });
     entries = process(j.rows);
@@ -319,15 +326,15 @@ async function load() {
 }
 
 /* ===== Actions ===== */
-async function confirmPrayer(prayer, btn) {
+async function confirmPrayer(prayer, btn, kind) {
   if (busy) return; busy = true; btn.disabled = true; say("Saving…");
   try {
-    const j = await api({ ...auth(), action: "add", prayer, ...here() });
-    entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name]]);
-    const e = entries.find(x => x.at === j.at);
-    say(e.key === "ontime" ? "Well done! " + prayer + " on time: +1 point" :
+    const j = await api({ ...auth(), action: "add", prayer, kind: kind || "", ...here() });
+    entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind || ""]]);
+    const e = entries.find(x => x.at === j.at), nm = pname(e);
+    say(e.key === "ontime" ? "Well done! " + nm + " on time: +1 point" :
         e.key === "dup" ? "Already saved earlier today." :
-        prayer + " saved as " + e.label.toLowerCase() + ": +" + pts(e.points) + " point");
+        nm + " saved as " + e.label.toLowerCase() + ": +" + pts(e.points) + " point");
     render();
   } catch (err) { btn.disabled = false; say(err.message || "Not saved. Try again.", true); }
   busy = false;
@@ -360,8 +367,14 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel) {
   const form = el("div", "markform"), now = Date.now(), inp = el("input", "timein"); inp.type = "time"; inp.id = "mark-" + prayer + "-" + dayKey(dayP);
   inp.value = hhmm(Math.min(now, w.end)); inp.setAttribute("aria-label", "Time " + kid + " prayed " + prayer);
   const ok = el("button", "primary", "Save"), cancel = el("button", "ghost", "Cancel");
+  let kindSel = null;
+  if (jumuahDay(prayer, dayP)) {
+    kindSel = document.createElement("select"); kindSel.className = "kindsel"; kindSel.setAttribute("aria-label", "Dhuhr or Jumu'ah");
+    [["Jumuah", "🕌 Jumu'ah"], ["", "Dhuhr"]].forEach(([v, t]) => { const o = el("option", null, t); o.value = v; kindSel.append(o); });
+  }
   cancel.onclick = () => (onCancel || render)();
   ok.onclick = async () => {
+    const kind = kindSel ? kindSel.value : "";
     const [hh, mi] = inp.value.split(":").map(Number); if (isNaN(hh)) return;
     const at = zonedMs(dayP[0], dayP[1], dayP[2], hh, mi);
     if (Date.now() - w.start > MARK_LIMIT_MS) { msg("More than 24 hours have passed since " + prayer + " time. It can no longer be marked.", true); return; }
@@ -369,14 +382,15 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel) {
     if (at < w.start) { msg(prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true); return; }
     ok.disabled = true; msg("Saving…");
     try {
-      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start, ...here() });
-      entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name]]);
+      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start, kind, ...here() });
+      entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind]]);
       const e = entries.find(x => x.at === j.at && x.child === kid);
       (onDone || render)();
-      msg("Saved: " + kid + " – " + prayer + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
+      msg("Saved: " + kid + " – " + pname(e) + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
     } catch (err) { ok.disabled = false; msg(err.message, true); }
   };
-  const lab = el("label", "note", kid + " prayed " + prayer + " at"); lab.htmlFor = inp.id; form.append(lab, inp, ok, cancel);
+  const lab = el("label", "note", kid + " prayed " + (kindSel ? "Dhuhr or Jumu'ah" : prayer) + " at"); lab.htmlFor = inp.id;
+  form.append(lab); if (kindSel) form.append(kindSel); form.append(inp, ok, cancel);
   setTimeout(() => inp.focus(), 0);
   return form;
 }
@@ -465,14 +479,16 @@ function render() {
   if (!loaded) box.append(el("p", "note", "Loading…"));
   else PRAYERS.forEach(p => {
     const w = windowFor(p, tp), row = el("div", "prow" + (admin ? " parent" : "")), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
-    tx.append(el("div", "pname", p), el("div", "ptime", fmtT(w.start) + " – " + (p === "Isha" ? "midnight" : fmtT(w.end))));
+    const fri = jumuahDay(p, tp);
+    const done = entries.find(e => e.child === kid && e.day === today && e.prayer === p && (e.key === "ontime" || e.key === "late" || e.key === "verylate"));
+    if (fri) right.classList.add("wide");          // Friday: buttons / result on their own line
+    tx.append(el("div", "pname", fri ? (done ? pname(done) : "Dhuhr / Jumu'ah") : p), el("div", "ptime", fmtT(w.start) + " – " + (p === "Isha" ? "midnight" : fmtT(w.end))));
     left.append(icon(p.toLowerCase(), "picon"), tx);
     const extra = el("div", "pextra");
     if (window.openLearn) { const lb = el("button", "learnwide"); lb.innerHTML = window.LEARN_BOOK_ICON + "<span>How to pray " + p + "</span>"; lb.onclick = () => window.openLearn(p); extra.append(lb); }
-    const done = entries.find(e => e.child === kid && e.day === today && e.prayer === p && (e.key === "ontime" || e.key === "late" || e.key === "verylate"));
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
-      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
+      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + (done.jumuah ? "🕌 Jumu'ah " : fri ? "Dhuhr " : "") + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
       if (canRemove || (now - done.at < UNDO_MINUTES * 60000 && (!admin || done.by === session.user))) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
     } else if (now < w.start) {
       right.append(el("span", "chip", "Opens " + fmtT(w.start)));
@@ -484,8 +500,13 @@ function render() {
       right.append(b);
     } else {
       const late = now > w.end; if (late) row.classList.add("late");
-      const b = el("button", "primary" + (late ? " lateb" : ""), late ? "Prayed (late)" : "Prayed");
-      b.onclick = () => confirmPrayer(p, b); right.append(b);
+      if (fri) {                                    // Friday: which one did you pray?
+        const j = el("button", "primary" + (late ? " lateb" : ""), "🕌 Jumu'ah"), d = el("button", "primary" + (late ? " lateb" : ""), late ? "Dhuhr (late)" : "Dhuhr");
+        j.onclick = () => confirmPrayer(p, j, "Jumuah"); d.onclick = () => confirmPrayer(p, d, ""); right.append(j, d); right.classList.add("two");
+      } else {
+        const b = el("button", "primary" + (late ? " lateb" : ""), late ? "Prayed (late)" : "Prayed");
+        b.onclick = () => confirmPrayer(p, b); right.append(b);
+      }
     }
     if (admin && window.openNote && isKidId(kid)) {
       const n = window.noteFor && window.noteFor(kid, today, p);
@@ -522,7 +543,7 @@ function render() {
   if (!recent.length) hl.append(el("p", "note", "Nothing yet. Each Prayed tap shows up here."));
   recent.forEach(e => {
     const it = el("div", "hitem"), w = el("div", "what");
-    w.append(el("div", null, (admin ? e.child + " · " : "") + e.prayer + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at) + (e.by && e.by !== e.child ? " · marked by " + e.by : "")));
+    w.append(el("div", null, (admin ? e.child + " · " : "") + pname(e) + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at) + (e.by && e.by !== e.child ? " · marked by " + e.by : "")));
     const r = el("div", "right"); r.append(el("span", "chip " + (e.key === "ontime" ? "ok" : e.points ? "late" : ""), "+" + pts(e.points)));
     if (canRemove) { const u = el("button", "ghost", "Remove"); u.onclick = () => undo(e, u); r.append(u); }
     it.append(w, r); hl.append(it);
@@ -561,7 +582,7 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
-<script src="parents.js?v=20261111c"></script>
+<script src="parents.js?v=20261113a"></script>
 <script src="family.js?v=20261112b"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>

@@ -1,29 +1,43 @@
-/* Parents only (Dad, Mom): Stats (week / month), Tracker (calendar of every prayer) and Notes.
+/* Parents only (Dad, Mom): Stats (day / week / month, any period back), Tracker (calendar of every prayer) and Notes.
    Uses the shared state from index.html: entries, notes, session, PRAYERS, KIDS, RULES, windowFor, parts,
    dayKey, fmtT, fmtD, pts, money, el, icon, kidKind, api, auth, say, render. */
 (function () {
   const $ = id => document.getElementById(id);
   const OK = ["ontime", "late", "verylate"];
-  let statPeriod = "week", trackKid = null, trackLastMonth = false, trackSel = null;
+  let statKind = "week", statOff = 0, trackKid = null, trackOff = 0, trackSel = null;   // Off = how many days / weeks / months back
 
   /* ---------- dates (Toronto calendar days as [y, m, d]) ---------- */
   const addDays = (p, n) => { const d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)); return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()]; };
   const weekday = p => new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();         // 0 = Sunday
   const dayLabel = p => new Date(Date.UTC(p[0], p[1] - 1, p[2], 12)).toLocaleDateString("en", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
-  function period(kind) {
+  function period(kind, off) {
+    off = off || 0;
     const today = parts(Date.now());
     let start, end, label;
-    if (kind === "week" || kind === "lastweek") {
-      start = addDays(today, -weekday(today) - (kind === "lastweek" ? 7 : 0)); end = addDays(start, 6);
-      label = (kind === "week" ? "This week" : "Last week") + " · " + dayLabel(start) + " – " + dayLabel(end);
+    if (kind === "day") {
+      start = end = addDays(today, off);
+      label = off === 0 ? "Today · " + dayLabel(start) : off === -1 ? "Yesterday · " + dayLabel(start) : dayLabel(start) + " " + start[0];
+    } else if (kind === "week") {
+      start = addDays(today, -weekday(today) + 7 * off); end = addDays(start, 6);
+      label = (off === 0 ? "This week" : off === -1 ? "Last week" : (-off) + " weeks ago") + " · " + dayLabel(start) + " – " + dayLabel(end);
     } else {
-      const ym = kind === "month" ? [today[0], today[1]] : (today[1] === 1 ? [today[0] - 1, 12] : [today[0], today[1] - 1]);
-      start = [ym[0], ym[1], 1]; end = addDays(ym[1] === 12 ? [ym[0] + 1, 1, 1] : [ym[0], ym[1] + 1, 1], -1);
-      label = new Date(Date.UTC(ym[0], ym[1] - 1, 15)).toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "UTC" });
+      let y = today[0], m = today[1] + off; while (m < 1) { m += 12; y--; }
+      start = [y, m, 1]; end = addDays(m === 12 ? [y + 1, 1, 1] : [y, m + 1, 1], -1);
+      label = new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "UTC" }) + (off === 0 ? " (this month)" : off === -1 ? " (last month)" : "");
     }
     const days = [];
     for (let d = start; dayKey(d) <= dayKey(end) && dayKey(d) <= dayKey(today); d = addDays(d, 1)) days.push(d);
-    return { label, days };
+    return { label, days, start, end };
+  }
+  // ‹ label › bar to step back and forward (never into the future)
+  function stepper(label, off, set, extra) {
+    const bar = el("div", "stepper"), prev = el("button", "ghost stepb", "‹"), next = el("button", "ghost stepb", "›");
+    prev.setAttribute("aria-label", "Earlier"); next.setAttribute("aria-label", "Later");
+    prev.onclick = () => set(off - 1); next.onclick = () => set(off + 1); next.disabled = off >= 0;
+    const mid = el("div", "steplabel"); mid.append(el("b", null, label)); if (extra) mid.append(extra);
+    bar.append(prev, mid, next);
+    if (off < 0) { const back = el("button", "ghost xs", "Back to now"); back.onclick = () => set(0); mid.append(back); }
+    return bar;
   }
 
   // Counting starts on the first day anything was recorded, so days before the family started using the page aren't "missed".
@@ -64,15 +78,25 @@
   function renderStats() {
     const box = $("statsbody"); box.replaceChildren();
     const bar = el("div", "seg");
-    [["week", "This week"], ["lastweek", "Last week"], ["month", "This month"], ["lastmonth", "Last month"]].forEach(([k, t]) => {
-      const b = el("button", null, t); b.setAttribute("aria-pressed", String(statPeriod === k)); b.onclick = () => { statPeriod = k; renderStats(); }; bar.append(b);
+    [["day", "Day"], ["week", "Week"], ["month", "Month"]].forEach(([k, t]) => {
+      const b = el("button", null, t); b.setAttribute("aria-pressed", String(statKind === k)); b.onclick = () => { statKind = k; statOff = 0; renderStats(); }; bar.append(b);
     });
-    const per = period(statPeriod);
-    box.append(bar, el("p", "note", per.label + ". Weeks run Sunday to Saturday. Counting starts " + dayLabel(startDay().split("-").map(Number)) + "; prayers whose time hasn't ended yet aren't counted as missed."));
+    const per = period(statKind, statOff);
+    let pick = null;
+    if (statKind === "day") {                      // jump straight to a date
+      pick = document.createElement("input"); pick.type = "date"; pick.className = "daypick"; pick.setAttribute("aria-label", "Choose a day");
+      pick.value = dayKey(per.start); pick.max = dayKey(parts(Date.now()));
+      pick.onchange = () => { if (!pick.value) return; const [y, m, d] = pick.value.split("-").map(Number), t = parts(Date.now());
+        statOff = Math.min(0, Math.round((Date.UTC(y, m - 1, d) - Date.UTC(t[0], t[1] - 1, t[2])) / 86400e3)); renderStats(); };
+    }
+    box.append(bar, stepper(per.label, statOff, o => { statOff = Math.min(0, o); renderStats(); }, pick));
+    if (statKind === "day") { renderDay(box, per.start); return; }
+    box.append(el("p", "note", "Weeks run Sunday to Saturday. Counting starts " + dayLabel(startDay().split("-").map(Number)) + "; prayers whose time hasn't ended yet aren't counted as missed."));
     MEMBERS.map(id => ({ id, kid: KIDS.some(k => k.id === id) })).forEach(k => {
       const st = stats(k.id, per.days), t = st.tot, done = t.ontime + t.late + t.verylate;
       const card = el("div", "scard"), head = el("div", "shead");
-      const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "")));
+      const jum = per.days.filter(d => entries.some(e => e.child === k.id && e.day === dayKey(d) && e.jumuah && OK.includes(e.key))).length;
+      const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "") + (jum ? " · 🕌 Jumu'ah ×" + jum : "")));
       head.append(av(k.id, "av"), name);
       const bars = el("div", "sbar");
       [["ontime", "ok"], ["late", "lt"], ["verylate", "vl"], ["missed", "ms"]].forEach(([key, cls]) => {
@@ -95,23 +119,47 @@
     });
   }
 
+  /* ---------- one day: how many prayers each person prayed ---------- */
+  const STAT_TXT = { ontime: "On time", late: "Late", verylate: "Late 2h+", missed: "Missed", open: "Time is open", future: "Not yet", before: "Before tracking" };
+  function renderDay(box, d) {
+    const now = Date.now(), sum = el("div", "daysum");
+    const cards = MEMBERS.map(id => {
+      const ss = PRAYERS.map(p => statusOf(id, d, p, now));
+      const done = ss.filter(s => s.e).length, due = ss.filter(s => s.e || s.key === "missed").length;
+      const chip = el("div", "dchip"); chip.dataset.who = id;
+      chip.append(av(id, "av sm"), el("b", null, id), el("span", null, done + "/5"));
+      sum.append(chip);
+      const card = el("div", "scard"), head = el("div", "shead"), name = el("div");
+      name.append(el("b", null, id), el("div", "note", done + " of 5 prayed" + (due > done ? " · " + (due - done) + " missed" : "") + (done === 5 ? " · 🌟 all five!" : "")));
+      head.append(av(id, "av"), name); card.append(head);
+      const list = el("div", "dlist");
+      ss.forEach((s, i) => {
+        const p = PRAYERS[i], row = el("div", "drow " + ({ ontime: "ok", late: "lt", verylate: "vl", missed: "ms" }[s.key] || "nx"));
+        row.append(icon(p.toLowerCase(), "ticon"), el("span", "dp", s.e && s.e.jumuah ? "Jumu'ah" : p));
+        row.append(el("span", "ds", s.e ? STAT_TXT[s.key] + " · " + fmtT(s.e.at) + (s.e.by !== id ? " · by " + s.e.by : "") : STAT_TXT[s.key] || s.key));
+        list.append(row);
+      });
+      card.append(list);
+      return card;
+    });
+    box.append(sum, ...cards);
+  }
+
   /* ---------- Tracker tab ---------- */
   function renderTracker() {
     const box = $("trackerbody"); box.replaceChildren();
     if (!trackKid) trackKid = KIDS[0].id;
     const kids = el("div", "seg");
     MEMBERS.forEach(id => { const b = el("button", null, id); b.setAttribute("aria-pressed", String(trackKid === id)); b.onclick = () => { trackKid = id; trackSel = null; renderTracker(); }; kids.append(b); });
-    const months = el("div", "seg");
-    [[false, "This month"], [true, "Last month"]].forEach(([v, t]) => { const b = el("button", null, t); b.setAttribute("aria-pressed", String(trackLastMonth === v)); b.onclick = () => { trackLastMonth = v; trackSel = null; renderTracker(); }; months.append(b); });
+    const per = period("month", trackOff), now = Date.now();
+    const months = stepper(per.label, trackOff, o => { trackOff = Math.min(0, o); trackSel = null; renderTracker(); });
     const legend = el("div", "legend");
     [["ok", "On time"], ["lt", "Late ≤2h"], ["vl", "Late 2h+"], ["ms", "Missed"], ["nx", "Not due yet"], ["bf", "Before tracking"]].forEach(([c, t]) => { const s = el("span"); s.append(el("i", "dot " + c), document.createTextNode(t)); legend.append(s); });
     box.append(kids, months, legend);
 
-    const per = period(trackLastMonth ? "lastmonth" : "month"), now = Date.now();
     const tw = el("div", "tablewrap"), tb = el("table", "track"), hr = el("tr");
     hr.append(el("th", null, ""));
     PRAYERS.forEach(p => { const th = el("th"); th.append(icon(p.toLowerCase(), "ticon"), el("span", null, p)); hr.append(th); });
-    box.append(el("b", null, per.label));
     tb.append(hr);
     per.days.slice().reverse().forEach(d => {
       const tr = el("tr"), dd = new Date(Date.UTC(d[0], d[1] - 1, d[2], 12));
@@ -122,6 +170,7 @@
         const b = el("button", "tcell " + cls + (trackSel && trackSel.day === s.day && trackSel.prayer === p ? " sel" : ""));
         b.textContent = s.e ? fmtT(s.e.at).replace(/\s?[AP]M$/i, "") : s.key === "missed" ? "✕" : s.key === "before" ? "–" : "·";
         if (n) b.append(el("span", "ndot", "✎"));
+        if (s.e && s.e.jumuah) b.append(el("span", "jdot", "J"));
         b.setAttribute("aria-label", p + " " + dayLabel(d) + ": " + (s.e ? s.e.label + " at " + fmtT(s.e.at) : s.key) + (n ? ", has a note" : ""));
         b.onclick = () => { trackSel = { day: s.day, prayer: p, d }; renderTracker(); };
         const td = el("td"); td.append(b); tr.append(td);
@@ -135,7 +184,7 @@
 
   function detail(child, d, prayer) {
     const s = statusOf(child, d, prayer, Date.now()), n = noteFor(child, s.day, prayer), card = el("div", "tdetail");
-    const label = s.e ? s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
+    const label = s.e ? (s.e.jumuah ? "🕌 Jumu'ah · " : "") + s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
       : s.key === "missed" ? "Not prayed (missed)" : s.key === "before" ? "Before tracking started" : s.key === "open" ? "Time is open now (until " + fmtT(s.w.end) + ")" : "Not due yet (starts " + fmtT(s.w.start) + ")";
     card.append(el("b", null, child + " · " + prayer + " · " + dayLabel(d)), el("div", "note", "Adhan " + fmtT(s.w.start) + " · " + label));
     const isKid = KIDS.some(k => k.id === child);
@@ -229,6 +278,21 @@
   .tcell{position:relative;width:100%;min-width:0;border-radius:8px;padding:9px 0;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.2px}
   .tcell.sel{outline:2px solid var(--accent);outline-offset:1px}
   .ndot{position:absolute;top:1px;right:3px;font-size:10px;color:var(--accent)}
+  .jdot{position:absolute;bottom:1px;right:3px;font-size:9px;font-weight:700;color:var(--gold)}
+  .stepper{display:flex;align-items:center;gap:8px}
+  .stepb{font-size:22px;line-height:1;padding:6px 14px;font-weight:600}.stepb:disabled{opacity:.35;cursor:default}
+  .steplabel{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+  .steplabel b{font-size:15px}
+  .daypick{width:auto;padding:6px 8px}
+  .daysum{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .dchip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:var(--wait-bg)}
+  .dchip b{flex:1;min-width:0}.dchip span:last-child{font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+  .dchip[data-who=Dad]{background:var(--b-Dad)}.dchip[data-who=Mom]{background:var(--b-Mom)}.dchip[data-who=Yousuf]{background:var(--b-Yousuf)}.dchip[data-who=Eva]{background:var(--b-Eva)}
+  .dlist{display:flex;flex-direction:column;gap:4px}
+  .drow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;font-size:14px}
+  .drow .ticon{margin:0;width:20px;height:20px}.drow .dp{font-weight:600;width:64px}.drow .ds{flex:1;min-width:0;color:var(--muted);font-size:13px}
+  .drow.ok{background:var(--done-bg)}.drow.ok .ds{color:var(--done)}.drow.lt{background:#f6ead2}.drow.vl,.drow.ms{background:var(--late-bg)}.drow.ms .ds,.drow.vl .ds{color:var(--late)}
+  @media (prefers-color-scheme:dark){.drow.lt{background:#3d3018}}
   .tdetail{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
   .noteed{display:flex;flex-direction:column;gap:6px;margin-top:4px}
   .noteed textarea{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;resize:vertical}
