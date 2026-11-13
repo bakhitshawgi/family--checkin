@@ -143,6 +143,7 @@
     ov.append(card); document.body.append(ov);
     ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
   };
+  window.photoOf = u => photos[u] || "";
   window.viewPhoto = function (u) {
     if (!photos[u]) return;
     const ov = el("div", "nov photoview"), card = el("div", "pvcard"), img = new Image();

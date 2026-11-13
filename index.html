@@ -107,6 +107,13 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 
 .hello{display:flex;align-items:center;gap:12px}
 .hello .av{width:56px;height:56px}
+.hello.profile{flex-direction:column;text-align:center;position:relative;padding:18px 12px 14px;border-radius:14px;background:var(--wait-bg);gap:8px}
+.hello.profile[data-who=Dad]{background:var(--b-Dad)}.hello.profile[data-who=Mom]{background:var(--b-Mom)}.hello.profile[data-who=Yousuf]{background:var(--b-Yousuf)}.hello.profile[data-who=Eva]{background:var(--b-Eva)}
+.hello.profile .av.xl{width:112px;height:112px;box-shadow:0 0 0 4px var(--surface)}.hello.profile .av.xl.initial{font-size:46px}
+.backbtn{position:absolute;left:10px;top:10px;background:var(--surface);padding:6px 12px;font-size:14px}
+.pfinfo{display:flex;flex-direction:column;align-items:center;gap:2px}
+.pfname{background:none;padding:2px 8px;font-family:var(--display);font-weight:400;font-size:26px;color:var(--fg);text-decoration:underline dotted var(--line);text-underline-offset:5px}
+.pfhint{text-align:center;padding:6px 0}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .stat{background:var(--wait-bg);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .stat b{font-size:22px;font-variant-numeric:tabular-nums}
@@ -303,6 +310,7 @@ const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 /* ===== API ===== */
 let session = store.get("session");   // {user, pass, admin}
 let entries = [], loaded = false, sel = store.get("selkid") || "Yousuf", showLastMonth = false, busy = false;
+let focus = store.get("focus") || null;   // Dad / Mom: the one family member whose page is open (null = everyone)
 
 async function api(params) {
   const u = new URL(CONFIG.scriptUrl);
@@ -449,6 +457,7 @@ function render() {
 
   const admin = !!(session.viewAll || session.admin);   // family view (Dad or Mom)
   const canRemove = !!session.admin;                      // only Dad removes entries
+  if (admin && focus && MEMBERS.includes(focus)) sel = focus; else focus = null;
   if (admin && !MEMBERS.includes(sel)) sel = KIDS[0].id;
   const kid = admin ? sel : session.user;
   const otherParent = admin && !isKidId(kid) && kid !== session.user;   // Mom looking at Dad's prayers (or the other way): view only
@@ -475,17 +484,28 @@ function render() {
   }
 
   // header / kid switch
-  const hello = $("hello"); hello.replaceChildren();
-  const kb = $("kidbtns"); kb.replaceChildren(); kb.hidden = !admin; hello.hidden = admin;
-  const pc = $("parentcards"); pc.replaceChildren(); pc.hidden = !admin;
+  const hello = $("hello"); hello.replaceChildren(); hello.className = "hello"; delete hello.dataset.who;
+  const kb = $("kidbtns"); kb.replaceChildren(); kb.hidden = !admin || !!focus; hello.hidden = admin && !focus;
+  const pc = $("parentcards"); pc.replaceChildren(); pc.hidden = !admin || !!focus;
   const todayPts = id => entries.filter(e => e.child === id && e.day === today).reduce((a, e) => a + e.points, 0);
-  if (admin) {
+  const prayedToday = id => entries.filter(e => e.child === id && e.day === today && e.points > 0).length;
+  if (admin && focus) {                                   // one person's page: big photo, name, today, their prayers
+    hello.className = "hello profile"; hello.dataset.who = focus;
+    const back = el("button", "ghost backbtn", "← Family"); back.onclick = () => { focus = null; store.set("focus", null); say(""); render(); window.scrollTo(0, 0); };
+    const preview = () => (window.photoOf && window.photoOf(focus)) ? window.viewPhoto(focus) : (window.canEditPhoto && window.canEditPhoto(focus) ? window.openPhotos(focus) : null);
+    const big = av(focus, "av xl"); big.classList.add("zoomable"); big.setAttribute("role", "button"); big.tabIndex = 0; big.setAttribute("aria-label", "See " + focus + "'s photo");
+    big.onclick = preview; big.onkeydown = e => { if (e.key === "Enter" || e.key === " ") preview(); };
+    const nm = el("button", "pfname", focus + (focus === session.user ? " (you)" : "")); nm.onclick = preview;
+    const n = todayPts(focus);
+    const info = el("div", "pfinfo"); info.append(nm, el("div", "note", isKidId(focus) ? prayedToday(focus) + " of 5 prayed · " + pts(n) + (n === 1 ? " point" : " points") + " today" : prayedToday(focus) + " of 5 prayed today"));
+    hello.append(back, big, info);
+  } else if (admin) {
     MEMBERS.forEach(id => {                               // Dad & Mom on top, then the children
       const parent = !isKidId(id), b = el("button", "kidbtn" + (parent ? " pcard" : "")); b.setAttribute("aria-pressed", String(sel === id)); b.dataset.who = id;
       const n = todayPts(id), prayed = entries.filter(e => e.child === id && e.day === today && e.points > 0).length;
       const tx = el("div"); tx.append(el("b", null, id + (id === session.user ? " (you)" : "")),
         el("span", "count", parent ? prayed + " of 5 prayed today" : pts(n) + (n === 1 ? " point" : " points") + " today"));
-      b.append(photoAv(id), tx); b.onclick = () => { sel = id; store.set("selkid", sel); say(""); render(); };
+      b.append(photoAv(id), tx); b.onclick = () => { sel = focus = id; store.set("selkid", sel); store.set("focus", id); say(""); render(); window.scrollTo(0, 0); };
       (parent ? pc : kb).append(b);
     });
   } else {
@@ -496,6 +516,7 @@ function render() {
   // today's prayers
   const box = $("prows"); box.replaceChildren();
   if (!loaded) box.append(el("p", "note", "Loading…"));
+  else if (admin && !focus) box.append(el("p", "note pfhint", "Tap a name to open their page."));
   else PRAYERS.forEach(p => {
     const w = windowFor(p, tp), row = el("div", "prow" + (admin ? " parent" : "")), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
     const fri = jumuahDay(p, tp);
@@ -541,13 +562,13 @@ function render() {
   $("monthtitle").textContent = new Date(Date.UTC(mp[0], mp[1] - 1, 15)).toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "UTC" });
   $("monthtoggle").textContent = showLastMonth ? "This month" : "Last month";
   const mb = $("monthbody"); mb.replaceChildren();
-  const kidsShown = admin ? MEMBERS : [kid];
+  const kidsShown = admin && !focus ? MEMBERS : [kid];
   const sum = id => { const es = entries.filter(e => e.child === id && e.month === mk);
     const p = es.reduce((a, e) => a + e.points, 0);
     return { on: es.filter(e => e.key === "ontime").length, late: es.filter(e => e.key === "late" || e.key === "verylate").length, p, d: p * RULES.dollarsPerPoint }; };
-  if (!admin) {
+  if (!admin || focus) {
     const s = sum(kid), g = el("div", "stats");
-    [["On time", s.on, ""], ["Points", pts(s.p), ""], ["Earned", money(s.d), "money"]].forEach(([l, v, c]) => { const d = el("div", "stat " + c); d.append(el("b", null, String(v)), el("span", null, l)); g.append(d); });
+    [["On time", s.on, ""], ["Points", pts(s.p), ""], isKidId(kid) ? ["Earned", money(s.d), "money"] : ["Late", s.late, ""]].forEach(([l, v, c]) => { const d = el("div", "stat " + c); d.append(el("b", null, String(v)), el("span", null, l)); g.append(d); });
     mb.append(g);
   } else {
     const tw = el("div", "tablewrap"), t = el("table"), hr = el("tr");
@@ -603,7 +624,7 @@ setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
 <script src="parents.js?v=20261113a"></script>
-<script src="family.js?v=20261113b"></script>
+<script src="family.js?v=20261113c"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>
 <script src="wisdom.js?v=20261112a"></script>
