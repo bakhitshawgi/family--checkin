@@ -95,8 +95,10 @@
     MEMBERS.map(id => ({ id, kid: KIDS.some(k => k.id === id) })).forEach(k => {
       const st = stats(k.id, per.days), t = st.tot, done = t.ontime + t.late + t.verylate;
       const card = el("div", "scard"), head = el("div", "shead");
+      const dayset = new Set(per.days.map(dayKey));       // Quran memorization points approved in this period
+      const qp = k.kid && Array.isArray(window.quran) ? window.quran.filter(q => q.child === k.id && q.status === "approved" && q.decided && dayset.has(dayKey(parts(q.decided)))).reduce((a, q) => a + q.points, 0) : 0;
       const jum = per.days.filter(d => entries.some(e => e.child === k.id && e.day === dayKey(d) && e.jumuah && OK.includes(e.key))).length;
-      const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "") + (jum ? " · 🕌 Jumu'ah ×" + jum : "")));
+      const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "") + (jum ? " · 🕌 Jumu'ah ×" + jum : "") + (qp ? " · 📖 Quran +" + pts(qp) : "")));
       head.append(av(k.id, "av"), name);
       const bars = el("div", "sbar");
       [["ontime", "ok"], ["late", "lt"], ["verylate", "vl"], ["missed", "ms"]].forEach(([key, cls]) => {
@@ -104,7 +106,7 @@
       });
       if (!t.possible) bars.append(el("span", "empty"));
       const nums = el("div", "snums");
-      [["On time", t.ontime, "ok"], ["Late ≤2h", t.late, "lt"], ["Late 2h+", t.verylate, "vl"], ["Missed", t.missed, "ms"], ["Points", pts(st.points), ""], k.kid ? ["Earned", money(st.points * RULES.dollarsPerPoint), "money"] : ["Rate", t.possible ? Math.round(done * 100 / t.possible) + "%" : "–", ""]]
+      [["On time", t.ontime, "ok"], ["Late ≤2h", t.late, "lt"], ["Late 2h+", t.verylate, "vl"], ["Missed", t.missed, "ms"], ["Points", pts(st.points + qp), ""], k.kid ? ["Earned", money((st.points + qp) * RULES.dollarsPerPoint), "money"] : ["Rate", t.possible ? Math.round(done * 100 / t.possible) + "%" : "–", ""]]
         .forEach(([l, v, c]) => { const d = el("div", "snum " + c); d.append(el("b", null, String(v)), el("span", null, l)); nums.append(d); });
       const tw = el("div", "tablewrap"), tb = el("table", "ptable"), hr = el("tr");
       ["Prayer", "On time", "Late", "Missed", "Rate"].forEach(h => hr.append(el("th", null, h))); tb.append(hr);

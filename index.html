@@ -177,6 +177,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
       <li>Late, up to 2 hours after that: ½ point</li>
       <li>More than 2 hours late: ¼ point</li>
       <li>Jumu'ah counts double: 2 points on time</li>
+      <li>Memorizing a surah (Quran tab): 10 points up to 10 verses, 15 points for 11–20 verses</li>
       <li>1 point = $0.25</li>
     </ul>
   </section>
@@ -200,6 +201,11 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
   <section class="panel" id="tasks" hidden>
     <h2>Tasks</h2>
     <div id="tasksbody" class="fambody"></div>
+  </section>
+
+  <section class="panel" id="quran" hidden>
+    <h2>Quran 📖</h2>
+    <div id="quranbody" class="fambody"></div>
   </section>
 
   <section class="panel" id="requests" hidden>
@@ -338,7 +344,7 @@ async function load() {
     const j = await api({ ...auth(), action: "list", since });
     entries = process(j.rows);
     window.notes = (j.notes || []).map(([day, child, prayer, text, by, at]) => ({ day, child, prayer, text, by, at }));
-    window.tasks = j.tasks; window.requests = j.requests; window.taskTypes = j.taskTypes; window.siblings = j.siblings || [];
+    window.tasks = j.tasks; window.requests = j.requests; window.taskTypes = j.taskTypes; window.siblings = j.siblings || []; window.quran = j.quran;
     if (window.syncPhotos) window.syncPhotos(j.photosAt);
     loaded = true; render();
   } catch (e) {
@@ -458,7 +464,7 @@ function render() {
   const signedIn = !!session;
   $("login").hidden = signedIn;
   ["today", "month", "history"].forEach(id => $(id).hidden = !signedIn);
-  ["ptabs", "stats", "tracker", "tasks", "requests", "activity"].forEach(id => $(id).hidden = true);
+  ["ptabs", "stats", "tracker", "tasks", "requests", "quran", "activity"].forEach(id => $(id).hidden = true);
   $("logout").hidden = !signedIn;
   if (signedIn) document.documentElement.dataset.user = session.user; else delete document.documentElement.dataset.user;
   if (!signedIn) { $("title").textContent = "Prayers"; $("whoami").textContent = ""; return; }
@@ -472,13 +478,13 @@ function render() {
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
   $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (parent)" : "") + ".";
   // tabs – Dad / Mom: Today · Stats · Tracker · Tasks · Requests;  children: Prayers · Tasks · Requests
-  const TABS = admin ? [["today", "Today"], ["stats", "Stats"], ["tracker", "Tracker"], ["tasks", "Tasks"], ["requests", "Requests"]].concat(canRemove ? [["activity", "Activity"]] : [])
-                     : [["today", "Prayers"], ["tasks", "Tasks"], ["requests", "Requests"]];
+  const TABS = admin ? [["today", "Today"], ["stats", "Stats"], ["tracker", "Tracker"], ["quran", "Quran"], ["tasks", "Tasks"], ["requests", "Requests"]].concat(canRemove ? [["activity", "Activity"]] : [])
+                     : [["today", "Prayers"], ["quran", "Quran"], ["tasks", "Tasks"], ["requests", "Requests"]];
   let tab = store.get("ptab") || "today"; if (!TABS.some(t => t[0] === tab)) tab = "today";
   const nav = $("ptabs"); nav.hidden = false; nav.replaceChildren();
   TABS.forEach(([id, label]) => {
     const b = el("button", null, label); b.dataset.tab = id; b.setAttribute("aria-pressed", String(id === tab));
-    const n = loaded && window.famBadge ? window.famBadge(id) : 0; if (n) b.append(el("span", "badge", String(n)));
+    const n = !loaded ? 0 : id === "quran" ? (window.quranBadge ? window.quranBadge() : 0) : window.famBadge ? window.famBadge(id) : 0; if (n) b.append(el("span", "badge", String(n)));
     b.onclick = () => { store.set("ptab", id); render(); window.scrollTo(0, 0); }; nav.append(b);
   });
   if (tab !== "today") {
@@ -487,6 +493,7 @@ function render() {
     if (!loaded) $(tab + "body").replaceChildren(el("p", "note", "Loading…"));
     else if (tab === "tasks" || tab === "requests") { if (window.renderFamily) window.renderFamily(tab); }
     else if (tab === "activity") { if (window.renderActivity) window.renderActivity(); }
+    else if (tab === "quran") { if (window.renderQuran) window.renderQuran(); }
     else if (window.renderParents) window.renderParents(tab);
     return;
   }
@@ -592,17 +599,19 @@ function render() {
   const mb = $("monthbody"); mb.replaceChildren();
   const kidsShown = admin && !focus ? MEMBERS : [kid];
   const sum = id => { const es = entries.filter(e => e.child === id && e.month === mk);
-    const p = es.reduce((a, e) => a + e.points, 0);
-    return { on: es.filter(e => e.key === "ontime").length, late: es.filter(e => e.key === "late" || e.key === "verylate").length, p, d: p * RULES.dollarsPerPoint }; };
+    const q = isKidId(id) && window.quranPoints ? window.quranPoints(id, mk) : 0;     // Quran memorization points (approved this month)
+    const p = es.reduce((a, e) => a + e.points, 0) + q;
+    return { on: es.filter(e => e.key === "ontime").length, late: es.filter(e => e.key === "late" || e.key === "verylate").length, q, p, d: p * RULES.dollarsPerPoint }; };
   if (!admin || focus) {
     const s = sum(kid), g = el("div", "stats");
     [["On time", s.on, ""], ["Points", pts(s.p), ""], isKidId(kid) ? ["Earned", money(s.d), "money"] : ["Late", s.late, ""]].forEach(([l, v, c]) => { const d = el("div", "stat " + c); d.append(el("b", null, String(v)), el("span", null, l)); g.append(d); });
     mb.append(g);
+    if (s.q) mb.append(el("p", "note", "📖 Includes +" + pts(s.q) + " points for memorizing the Quran."));
   } else {
     const tw = el("div", "tablewrap"), t = el("table"), hr = el("tr");
-    ["Child", "On time", "Late", "Points", "Amount"].forEach(h => hr.append(el("th", null, h))); t.append(hr);
+    ["Child", "On time", "Late", "📖 Quran", "Points", "Amount"].forEach(h => hr.append(el("th", null, h))); t.append(hr);
     kidsShown.forEach(id => { const s = sum(id), tr = el("tr");
-      tr.append(el("td", null, id), el("td", null, String(s.on)), el("td", null, String(s.late)), el("td", null, pts(s.p)), el("td", "money", isKidId(id) ? money(s.d) : "–")); t.append(tr); });
+      tr.append(el("td", null, id), el("td", null, String(s.on)), el("td", null, String(s.late)), el("td", null, isKidId(id) ? (s.q ? "+" + pts(s.q) : "0") : "–"), el("td", null, pts(s.p)), el("td", "money", isKidId(id) ? money(s.d) : "–")); t.append(tr); });
     tw.append(t); mb.append(tw);
   }
 
@@ -651,11 +660,12 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
-<script src="parents.js?v=20261113a"></script>
+<script src="parents.js?v=20261114a"></script>
 <script src="family.js?v=20261113c"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>
 <script src="wisdom.js?v=20261112a"></script>
 <script src="countdown.js?v=20261114f"></script>
+<script src="quran.js?v=20261114a"></script>
 </body>
 </html>
