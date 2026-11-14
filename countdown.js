@@ -35,11 +35,13 @@
     tiles = {}; box.replaceChildren();
     const top = document.createElement("div"); top.className = "cdtop";
     const h = document.createElement("b"); h.textContent = MEETING.title; top.append(h);
+    const sh = document.createElement("span"); sh.className = "cdshort";              // phone: time next to the title
+    sh.textContent = " · " + new Date(start).toLocaleDateString("en", { timeZone: PT.TZ, weekday: "short" }) + " " + PT.fmt(new Date(start)).replace(/\s?[AP]M$/i, ""); top.append(sh);
     const when = document.createElement("span"); when.className = "cdpill";
     when.textContent = "💛 " + new Date(start).toLocaleDateString("en", { timeZone: PT.TZ, weekday: "long" }) + " · " + PT.fmt(new Date(start));
     const row = document.createElement("div"); row.className = "cdtiles";
     const sep = () => { const s = document.createElement("span"); s.className = "cdsep"; s.textContent = ":"; return s; };
-    if (withDays) row.append(group(withDays === 1 ? "day" : "days", ["d1"]), sep());
+    if (withDays) { const d = sep(); d.classList.add("cdsepd"); row.append(group(withDays === 1 ? "day" : "days", ["d1"]), d); }
     row.append(group("hours", ["h1", "h2"]), sep(), group("min", ["m1", "m2"]), sep(), group("sec", ["s1", "s2"]));
     box.append(top, row, when);
     built = (withDays ? "D" + withDays : "") + start;
@@ -96,6 +98,27 @@
   .cdpill{background:#fff;color:var(--burg2);border-radius:999px;padding:3px 10px;font-size:10px;font-weight:700;white-space:nowrap}
   .cdnow{display:flex;flex-direction:column;align-items:center}.cdnow b{font-size:14px}.cdnow span{font-size:11px;opacity:.9}
   header.withcd h1{white-space:nowrap}
+  .cdshort{display:none}
+  /* phone: a small card on the right, next to the date and next-prayer lines */
+  @media (max-width:519px){
+    header.withcd{display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center}
+    header.withcd > *{grid-column:1 / -1}
+    header.withcd #datestr,header.withcd #nextline{grid-column:1}
+    header.withcd .meetcd{grid-column:2;grid-row:3 / span 2;align-self:center;padding:5px 7px 6px;gap:3px;border-radius:9px}
+    .cdtop b{font-size:10px}.cdshort{display:inline;font-size:10px;font-weight:600;opacity:.85}
+    .cdlab,.cdpill{display:none}
+    .cdtiles,.cdrow{gap:2px}
+    .cdtile{width:16px;height:22px;border-radius:3px}.cddig{font-size:15px}
+    .cdsep{font-size:12px;line-height:22px;height:22px;padding:0}
+    .cdsep.cdsepd{font-size:0;padding:0 2px 0 1px}.cdsep.cdsepd::after{content:"d";font-size:11px;font-weight:700}
+    .cdnow b{font-size:11px}.cdnow span{font-size:9px} }
+  @media (max-width:419px){
+    header.withcd #datestr,header.withcd #nextline{font-size:14px;white-space:nowrap}
+    header.withcd .meetcd{padding:4px 6px 5px}
+    .cdtile{width:14px;height:20px}.cddig{font-size:13px}.cdsep{line-height:20px;height:20px;font-size:11px}
+    .cdtop b,.cdshort{font-size:9px} }
+  @media (max-width:340px){ header.withcd h1{font-size:26px} header.withcd #datestr,header.withcd #nextline{font-size:12.5px}
+    .cdtile{width:12px;height:18px}.cddig{font-size:11px}.cdsep{line-height:18px;height:18px;font-size:10px}.cdtop b,.cdshort{font-size:8px} }
   @media (min-width:520px){
     header.withcd{display:grid;grid-template-columns:1fr auto;column-gap:12px;align-items:start}
     header.withcd > *{grid-column:1}
