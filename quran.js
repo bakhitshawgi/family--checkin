@@ -51,7 +51,6 @@
     ["Minshawy_Murattal_128kbps", "Al-Minshawi – murattal"],
     ["Abdurrahmaan_As-Sudais_192kbps", "As-Sudais"],
   ];
-  const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
   const memo = Object.assign({ reciter: RECITERS[0][0], repeat: 3, pause: true, speed: 1 }, store.get("memo") || {});
   const saveMemo = () => store.set("memo", { reciter: memo.reciter, repeat: memo.repeat, pause: memo.pause, speed: memo.speed });
   const player = new Audio(); player.preload = "auto";
@@ -64,27 +63,44 @@
     clearTimeout(job.gapTimer); const j = job; job = null; player.pause();
     if (j.onUpdate) j.onUpdate({ state: "stopped", msg });
   }
+  // reciters that turned out not to exist on this device's network are remembered and skipped
+  const bad = new Set(store.get("badReciters") || []);
+  const markBad = f => { bad.add(f); store.set("badReciters", [...bad]); };
+  const firstGood = want => (bad.has(want) ? (RECITERS.find(r => !bad.has(r[0])) || RECITERS[RECITERS.length - 1])[0] : want);
+  // iPhone / iPad only allow sound that starts inside the tap itself, so the first verse is played right here, synchronously.
   function startPlay(opts) {
     stopPlay();
-    const i = RECITERS.findIndex(r => r[0] === opts.reciter);
-    const chain = [...RECITERS.slice(Math.max(0, i)).map(r => r[0]), ...RECITERS.slice(0, Math.max(0, i)).map(r => r[0])];
-    job = Object.assign({ v: opts.from, rep: 0, chain, ci: 0 }, opts);
-    // unlock audio inside the tap (needed on iPhone / iPad), then start
-    player.src = SILENT; const p = player.play(); const go = () => { if (job) playVerse(); };
-    if (p && p.then) p.then(go, go); else go();
+    const first = firstGood(opts.reciter), i = RECITERS.findIndex(r => r[0] === first);
+    const chain = [...RECITERS.slice(Math.max(0, i)).map(r => r[0]), ...RECITERS.slice(0, Math.max(0, i)).map(r => r[0])].filter(f => f === first || !bad.has(f));
+    job = Object.assign({ v: opts.from, rep: 0, chain, ci: 0, started: false }, opts);
+    playVerse();
   }
   function playVerse() {
     const j = job; if (!j) return;
     player.src = urlFor(j.chain[j.ci], j.n, j.v);
     player.playbackRate = j.speed; player.preservesPitch = true; player.webkitPreservesPitch = true;
-    const p = player.play(); if (p && p.catch) p.catch(() => {});
+    const p = player.play();
+    if (p && p.catch) p.catch(err => {
+      if (job !== j || !err || err.name !== "NotAllowedError") return;
+      stopPlay("The iPad blocked the sound. Tap ▶ Start again.");      // the browser wants a fresh tap
+    });
     if (j.onUpdate) j.onUpdate({ state: "playing" });
   }
+  player.addEventListener("playing", () => { if (job) job.started = true; });
   player.addEventListener("ratechange", () => {});
   player.addEventListener("loadedmetadata", () => { if (job) player.playbackRate = job.speed; });
   player.addEventListener("error", () => {
-    const j = job; if (!j || player.src === SILENT || player.src.startsWith("data:")) return;
-    if (j.ci < j.chain.length - 1) { j.ci++; playVerse(); return; }         // this reciter isn't available: try the next one
+    const j = job; if (!j || player.src.startsWith("data:")) return;
+    const failed = j.chain[j.ci];
+    if (!j.started) {                     // the very first verse failed: this reciter isn't there. Remember it, pick the next one, ask for a new tap.
+      markBad(failed);
+      const nextR = j.chain.find(f => f !== failed && !bad.has(f)) || "Abdurrahmaan_As-Sudais_192kbps";
+      memo.reciter = nextR; saveMemo(); if (j.onReciter) j.onReciter(nextR);
+      const name = (RECITERS.find(r => r[0] === failed) || ["", failed])[1], nn = (RECITERS.find(r => r[0] === nextR) || ["", nextR])[1];
+      stopPlay(name + " isn't available. Switched to " + nn + " – tap ▶ again.");
+      return;
+    }
+    if (j.ci < j.chain.length - 1) { j.ci++; playVerse(); return; }        // already playing: carry on with the next reciter
     stopPlay("Couldn't load the recitation. Check the internet.");
   });
   player.addEventListener("ended", () => {
@@ -122,8 +138,8 @@
     const seg = (opts, cur, set) => { const s = el("div", "seg"); opts.forEach(([v, t]) => { const b = el("button", null, t); b.setAttribute("aria-pressed", String(cur() === v));
       b.onclick = () => { set(v); saveMemo(); [...s.children].forEach((c, i) => c.setAttribute("aria-pressed", String(opts[i][0] === cur()))); }; s.append(b); }); return s; };
     const rsel = document.createElement("select"); rsel.setAttribute("aria-label", "Reciter");
-    RECITERS.forEach(([v, t]) => { const o = el("option", null, t); o.value = v; rsel.append(o); }); rsel.value = memo.reciter;
-    rsel.onchange = () => { memo.reciter = rsel.value; saveMemo(); };
+    RECITERS.forEach(([v, t]) => { const o = el("option", null, t + (bad.has(v) ? " (not available)" : "")); o.value = v; rsel.append(o); }); rsel.value = firstGood(memo.reciter);
+    rsel.onchange = () => { memo.reciter = rsel.value; bad.delete(rsel.value); store.set("badReciters", [...bad]); saveMemo(); };
     const from = document.createElement("select"), to = document.createElement("select");
     for (let k = 1; k <= verseCount; k++) { const a = el("option", null, String(k)); a.value = k; from.append(a); const b = el("option", null, String(k)); b.value = k; to.append(b); }
     from.value = "1"; to.value = String(verseCount); from.setAttribute("aria-label", "From verse"); to.setAttribute("aria-label", "To verse");
@@ -162,7 +178,7 @@
     };
     go.onclick = () => {
       go.disabled = true; stop.disabled = false;
-      startPlay({ n, from: +from.value, to: +to.value, reciter: memo.reciter, repeat: memo.repeat, pause: memo.pause, speed: memo.speed, onUpdate: show });
+      startPlay({ n, from: +from.value, to: +to.value, reciter: memo.reciter, repeat: memo.repeat, pause: memo.pause, speed: memo.speed, onUpdate: show, onReciter: r => { rsel.value = r; } });
     };
     stop.onclick = () => stopPlay();
     return wrap;
@@ -248,10 +264,12 @@
     const lb = el("button", "ghost", "▶ Listen"), mb = el("button", "primary memob", "🧠 Memorize mode");
     let panel = null;
     lb.onclick = () => { if (job) { stopPlay(); lb.textContent = "▶ Listen"; return; }
-      lb.textContent = "■ Stop"; startPlay({ n, from: 1, to: x[3], reciter: memo.reciter, repeat: 1, pause: false, speed: memo.speed, onUpdate: u => { if (u.state === "done" || u.state === "stopped") lb.textContent = "▶ Listen"; } }); };
+      lb.textContent = "■ Stop"; setMsg(lmsg, "");
+      startPlay({ n, from: 1, to: x[3], reciter: memo.reciter, repeat: 1, pause: false, speed: memo.speed,
+        onUpdate: u => { if (u.state === "done" || u.state === "stopped") { lb.textContent = "▶ Listen"; if (u.msg) setMsg(lmsg, u.msg, true); } } }); };
     mb.onclick = () => { if (panel) { stopPlay(); panel.remove(); panel = null; mb.textContent = "🧠 Memorize mode"; return; }
-      stopPlay(); lb.textContent = "▶ Listen"; panel = memoPanel(n, x[3]); tools.after(panel); mb.textContent = "Close memorize mode"; };
-    const tools = el("div", "right left"); tools.append(mb, lb); card.append(tools);
+      stopPlay(); lb.textContent = "▶ Listen"; panel = memoPanel(n, x[3]); lmsg.after(panel); mb.textContent = "Close memorize mode"; };
+    const tools = el("div", "right left"), lmsg = el("div", "status"); tools.append(mb, lb); card.append(tools, lmsg);
     if (r) {
       const txt = { approved: "✨ Memorized" + (r.points ? " · +" + r.points + " points" : ""), known: "✓ Already knew it (no points)", pending: "⏳ Waiting for Mom or Dad", review: "🔁 Practice a bit more, then try again" }[r.status];
       card.append(el("p", "qstate q-" + r.status, txt + (r.decidedBy ? " · " + r.decidedBy + (r.decided ? ", " + fmtD(r.decided) : "") : "")));
