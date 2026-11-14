@@ -99,31 +99,21 @@
   .cdnow{display:flex;flex-direction:column;align-items:center}.cdnow b{font-size:14px}.cdnow span{font-size:11px;opacity:.9}
   header.withcd h1{white-space:nowrap}
   .cdshort{display:none}
-  /* phone: a small card on the right, next to the date and next-prayer lines */
-  @media (max-width:519px){
-    header.withcd{display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center}
-    header.withcd > *{grid-column:1 / -1}
-    header.withcd #datestr,header.withcd #nextline{grid-column:1}
-    header.withcd .meetcd{grid-column:2;grid-row:3 / span 2;align-self:center;padding:5px 7px 6px;gap:3px;border-radius:9px}
-    .cdtop b{font-size:10px}.cdshort{display:inline;font-size:10px;font-weight:600;opacity:.85}
-    .cdlab,.cdpill{display:none}
-    .cdtiles,.cdrow{gap:2px}
-    .cdtile{width:16px;height:22px;border-radius:3px}.cddig{font-size:15px}
-    .cdsep{font-size:12px;line-height:22px;height:22px;padding:0}
-    .cdsep.cdsepd{font-size:0;padding:0 2px 0 1px}.cdsep.cdsepd::after{content:"d";font-size:11px;font-weight:700}
-    .cdnow b{font-size:11px}.cdnow span{font-size:9px} }
-  @media (max-width:419px){
-    header.withcd #datestr,header.withcd #nextline{font-size:14px;white-space:nowrap}
-    header.withcd .meetcd{padding:4px 6px 5px}
-    .cdtile{width:14px;height:20px}.cddig{font-size:13px}.cdsep{line-height:20px;height:20px;font-size:11px}
-    .cdtop b,.cdshort{font-size:9px} }
+  /* one size on phone, iPad and computer: a small card on the right of the date and next-prayer lines */
+  header.withcd{display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center}
+  header.withcd > *{grid-column:1 / -1}
+  header.withcd #datestr,header.withcd #nextline{grid-column:1;font-size:14px;white-space:nowrap}
+  header.withcd .meetcd{grid-column:2;grid-row:3 / span 2;align-self:center;padding:4px 6px 5px;gap:3px;border-radius:9px}
+  .cdtop b,.cdshort{font-size:9px}.cdshort{display:inline;font-weight:600;opacity:.85}
+  .cdlab,.cdpill{display:none}
+  .cdtiles,.cdrow{gap:2px}
+  .cdtile{width:14px;height:20px;border-radius:3px}.cddig{font-size:13px}
+  .cdsep{font-size:11px;line-height:20px;height:20px;padding:0}
+  .cdsep.cdsepd{font-size:0;padding:0 2px 0 1px}.cdsep.cdsepd::after{content:"d";font-size:11px;font-weight:700}
+  .cdnow b{font-size:11px}.cdnow span{font-size:9px}
+  /* only very small old phones (320 px) need it a little smaller to fit */
   @media (max-width:340px){ header.withcd h1{font-size:26px} header.withcd #datestr,header.withcd #nextline{font-size:12.5px}
     .cdtile{width:12px;height:18px}.cddig{font-size:11px}.cdsep{line-height:18px;height:18px;font-size:10px}.cdtop b,.cdshort{font-size:8px} }
-  @media (min-width:520px){
-    header.withcd{display:grid;grid-template-columns:1fr auto;column-gap:12px;align-items:start}
-    header.withcd > *{grid-column:1}
-    header.withcd .meetcd{grid-column:2;grid-row:1 / span 4}
-    header.withcd .wisdom{grid-column:1 / -1} }
   @media (prefers-color-scheme:dark){ .meetcd{--burg1:#9b2a4c;--burg2:#4a0c1f} }
   </style>`);
   tick();
