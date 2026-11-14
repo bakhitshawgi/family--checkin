@@ -111,6 +111,15 @@
   .cdsep{font-size:11px;line-height:20px;height:20px;padding:0}
   .cdsep.cdsepd{font-size:0;padding:0 2px 0 1px}.cdsep.cdsepd::after{content:"d";font-size:11px;font-weight:700}
   .cdnow b{font-size:11px}.cdnow span{font-size:9px}
+  /* computer (mouse / trackpad, wide screen): 40% bigger. Phones and iPads keep the size above. */
+  @media (hover:hover) and (pointer:fine) and (min-width:900px){
+    header.withcd .meetcd{padding:6px 8px 7px;gap:4px;border-radius:12px}
+    .cdtop b,.cdshort{font-size:12.5px}
+    .cdtiles,.cdrow{gap:3px}
+    .cdtile{width:20px;height:28px;border-radius:4px}.cddig{font-size:18px}
+    .cdsep{font-size:15px;line-height:28px;height:28px}
+    .cdsep.cdsepd::after{font-size:15px}
+    .cdnow b{font-size:15px}.cdnow span{font-size:12.5px} }
   /* only very small old phones (320 px) need it a little smaller to fit */
   @media (max-width:340px){ header.withcd h1{font-size:26px} header.withcd #datestr,header.withcd #nextline{font-size:12.5px}
     .cdtile{width:12px;height:18px}.cddig{font-size:11px}.cdsep{line-height:18px;height:18px;font-size:10px}.cdtop b,.cdshort{font-size:8px} }
