@@ -2,7 +2,7 @@
    Up to 10 verses = 10 points, 11–20 verses = 15 points. Points count only after Dad or Mom approves.
    A child records the recitation (or says "I recited to Dad / Mom"); parents approve, ask for more review,
    award directly after hearing it in person, or mark a surah the child already knew (no points).
-   Uses the shared state from index.html: session, KIDS, CONFIG, el, api, auth, render, fmtD, fmtT, parts, monthKey, pts, money, RULES. */
+   Uses the shared state from index.html: session, KIDS, CONFIG, el, api, auth, render, store, fmtD, fmtT, parts, monthKey, pts, money, RULES. */
 (function () {
   const $ = id => document.getElementById(id);
   const S = [ // [number, English name, Arabic name, verses]
@@ -40,20 +40,134 @@
   }
   const oldScript = e => e && e.code !== "net" && e.code !== "bad" && e.code !== "login";
 
-  /* listen: Sheikh Sudais, verse by verse (everyayah.com) on one shared player */
-  const player = new Audio(); let queue = [], playingBtn = null;
-  function listen(n, btn) {
-    if (playingBtn === btn && !player.paused) { player.pause(); queue = []; btn.textContent = "▶ Listen"; playingBtn = null; return; }
-    if (playingBtn) playingBtn.textContent = "▶ Listen";
-    const v = info(n)[3], pad = x => String(x).padStart(3, "0");
-    queue = Array.from({ length: v }, (_, i) => "https://everyayah.com/data/Abdurrahmaan_As-Sudais_192kbps/" + pad(n) + pad(i + 1) + ".mp3");
-    playingBtn = btn; btn.textContent = "⏸ Stop"; next();
+  /* ---------- listening & Memorize mode ----------
+     One shared player (iPhone / iPad need that). Verse by verse from everyayah.com.
+     Memorize mode: repeat each verse, a pause after each verse to say it back, slower speed, a range of verses,
+     and the verse text (fetched on the device from api.alquran.cloud, Uthmani script). */
+  const RECITERS = [
+    ["Husary_Muallim_128kbps", "Al-Husary – teaching (slow)"],
+    ["Minshawy_Teacher_128kbps", "Al-Minshawi – with children"],
+    ["Husary_128kbps", "Al-Husary – murattal"],
+    ["Minshawy_Murattal_128kbps", "Al-Minshawi – murattal"],
+    ["Abdurrahmaan_As-Sudais_192kbps", "As-Sudais"],
+  ];
+  const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+  const memo = Object.assign({ reciter: RECITERS[0][0], repeat: 3, pause: true, speed: 1 }, store.get("memo") || {});
+  const saveMemo = () => store.set("memo", { reciter: memo.reciter, repeat: memo.repeat, pause: memo.pause, speed: memo.speed });
+  const player = new Audio(); player.preload = "auto";
+  let job = null;            // { n, from, to, v, rep, repeat, pause, speed, chain, ci, onUpdate, gapTimer }
+  const pad3 = x => String(x).padStart(3, "0");
+  const urlFor = (folder, n, v) => "https://everyayah.com/data/" + folder + "/" + pad3(n) + pad3(v) + ".mp3";
+
+  function stopPlay(msg) {
+    if (!job) return;
+    clearTimeout(job.gapTimer); const j = job; job = null; player.pause();
+    if (j.onUpdate) j.onUpdate({ state: "stopped", msg });
   }
-  function next() {
-    if (!queue.length) { if (playingBtn) playingBtn.textContent = "▶ Listen"; playingBtn = null; return; }
-    player.src = queue.shift(); player.play().catch(() => { if (playingBtn) playingBtn.textContent = "▶ Listen"; playingBtn = null; });
+  function startPlay(opts) {
+    stopPlay();
+    const i = RECITERS.findIndex(r => r[0] === opts.reciter);
+    const chain = [...RECITERS.slice(Math.max(0, i)).map(r => r[0]), ...RECITERS.slice(0, Math.max(0, i)).map(r => r[0])];
+    job = Object.assign({ v: opts.from, rep: 0, chain, ci: 0 }, opts);
+    // unlock audio inside the tap (needed on iPhone / iPad), then start
+    player.src = SILENT; const p = player.play(); const go = () => { if (job) playVerse(); };
+    if (p && p.then) p.then(go, go); else go();
   }
-  player.addEventListener("ended", next);
+  function playVerse() {
+    const j = job; if (!j) return;
+    player.src = urlFor(j.chain[j.ci], j.n, j.v);
+    player.playbackRate = j.speed; player.preservesPitch = true; player.webkitPreservesPitch = true;
+    const p = player.play(); if (p && p.catch) p.catch(() => {});
+    if (j.onUpdate) j.onUpdate({ state: "playing" });
+  }
+  player.addEventListener("ratechange", () => {});
+  player.addEventListener("loadedmetadata", () => { if (job) player.playbackRate = job.speed; });
+  player.addEventListener("error", () => {
+    const j = job; if (!j || player.src === SILENT || player.src.startsWith("data:")) return;
+    if (j.ci < j.chain.length - 1) { j.ci++; playVerse(); return; }         // this reciter isn't available: try the next one
+    stopPlay("Couldn't load the recitation. Check the internet.");
+  });
+  player.addEventListener("ended", () => {
+    const j = job; if (!j || player.src.startsWith("data:")) return;
+    const after = () => {
+      if (!job) return;
+      j.rep++;
+      if (j.rep < j.repeat) return playVerse();
+      j.rep = 0; j.v++;
+      if (j.v > j.to) { const u = j.onUpdate; job = null; if (u) u({ state: "done" }); return; }
+      playVerse();
+    };
+    if (j.pause) {                              // your turn: silence as long as the verse took
+      const secs = (isFinite(player.duration) && player.duration > 0 ? player.duration / j.speed : 4) + 0.5;
+      if (j.onUpdate) j.onUpdate({ state: "yourturn", secs });
+      j.gapTimer = setTimeout(after, secs * 1000);
+    } else after();
+  });
+
+  // verse text, cached on the device
+  async function verses(n) {
+    const key = "qtext" + n, have = store.get(key); if (have && have.length) return have;
+    const r = await fetch("https://api.alquran.cloud/v1/surah/" + n + "/quran-uthmani"); const j = await r.json();
+    let list = j.data.ayahs.map(a => a.text);
+    if (n !== 1 && list[0] && list[0].startsWith("بِسْمِ")) {        // the API puts the basmala in front of verse 1
+      const w = list[0].split(" "); if (w.length > 4) list[0] = w.slice(4).join(" ");
+    }
+    store.set(key, list); return list;
+  }
+  const arabicNum = k => String(k).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
+
+  function memoPanel(n, verseCount) {
+    const wrap = el("div", "memo");
+    const row = (label, ctrl) => { const r = el("div", "memorow"); r.append(el("span", "memolab", label), ctrl); return r; };
+    const seg = (opts, cur, set) => { const s = el("div", "seg"); opts.forEach(([v, t]) => { const b = el("button", null, t); b.setAttribute("aria-pressed", String(cur() === v));
+      b.onclick = () => { set(v); saveMemo(); [...s.children].forEach((c, i) => c.setAttribute("aria-pressed", String(opts[i][0] === cur()))); }; s.append(b); }); return s; };
+    const rsel = document.createElement("select"); rsel.setAttribute("aria-label", "Reciter");
+    RECITERS.forEach(([v, t]) => { const o = el("option", null, t); o.value = v; rsel.append(o); }); rsel.value = memo.reciter;
+    rsel.onchange = () => { memo.reciter = rsel.value; saveMemo(); };
+    const from = document.createElement("select"), to = document.createElement("select");
+    for (let k = 1; k <= verseCount; k++) { const a = el("option", null, String(k)); a.value = k; from.append(a); const b = el("option", null, String(k)); b.value = k; to.append(b); }
+    from.value = "1"; to.value = String(verseCount); from.setAttribute("aria-label", "From verse"); to.setAttribute("aria-label", "To verse");
+    from.onchange = () => { if (+to.value < +from.value) to.value = from.value; }; to.onchange = () => { if (+to.value < +from.value) from.value = to.value; };
+    const range = el("div", "memorange"); range.append(el("span", null, "Verses"), from, el("span", null, "to"), to);
+    const pauseSeg = seg([[true, "Yes"], [false, "No"]], () => memo.pause, v => memo.pause = v);
+    wrap.append(row("Reciter", rsel), row("Repeat each verse", seg([[1, "1×"], [3, "3×"], [5, "5×"]], () => memo.repeat, v => memo.repeat = v)),
+      row("Pause to say it back", pauseSeg), row("Speed", seg([[0.75, "0.75×"], [0.85, "0.85×"], [1, "1×"]], () => memo.speed, v => memo.speed = v)), row("", range));
+
+    const now = el("div", "memonow"), state = el("div", "memostate"), text = el("div", "memotext"); text.dir = "rtl"; text.lang = "ar";
+    now.append(state, text);
+    const go = el("button", "primary", "▶ Start"), stop = el("button", "ghost", "■ Stop"); stop.disabled = true;
+    const btns = el("div", "right left"); btns.append(go, stop);
+    const all = el("div", "memoverses"); all.dir = "rtl"; all.lang = "ar";
+    wrap.append(btns, now, all);
+
+    let vs = null;
+    verses(n).then(list => { vs = list; all.replaceChildren(...list.map((t, i) => { const s = el("span", "mv", t + " ﴿" + arabicNum(i + 1) + "﴾ ");
+      s.dataset.v = i + 1; s.title = "Start from verse " + (i + 1); s.onclick = () => { from.value = String(i + 1); if (+to.value < i + 1) to.value = String(i + 1); go.click(); }; return s; })); })
+      .catch(() => all.replaceChildren(el("p", "note", "The verse text couldn't load (internet). The recitation still works.")));
+
+    const show = u => {
+      const j = job;
+      all.querySelectorAll(".mv.on").forEach(x => x.classList.remove("on"));
+      if (u.state === "done" || u.state === "stopped") {
+        go.disabled = false; stop.disabled = true; text.textContent = "";
+        state.textContent = u.state === "done" ? "🌟 Well done! Try saying the verses without listening." : (u.msg || "");
+        state.className = "memostate" + (u.msg ? " err" : ""); return;
+      }
+      if (!j) return;
+      const cur = all.querySelector('.mv[data-v="' + j.v + '"]'); if (cur) { cur.classList.add("on"); cur.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+      text.textContent = vs ? vs[j.v - 1] + " ﴿" + arabicNum(j.v) + "﴾" : "";
+      const used = RECITERS.find(r => r[0] === j.chain[j.ci]);
+      state.className = "memostate" + (u.state === "yourturn" ? " turn" : "");
+      state.textContent = (u.state === "yourturn" ? "🗣️ Your turn – say it! " : "🎧 Listen · ") + "Verse " + j.v + " of " + j.to + (j.repeat > 1 ? " · " + (j.rep + 1) + "/" + j.repeat : "") + (j.ci ? " · " + used[1] : "");
+    };
+    go.onclick = () => {
+      go.disabled = true; stop.disabled = false;
+      startPlay({ n, from: +from.value, to: +to.value, reciter: memo.reciter, repeat: memo.repeat, pause: memo.pause, speed: memo.speed, onUpdate: show });
+    };
+    stop.onclick = () => stopPlay();
+    return wrap;
+  }
+  window.quranStop = () => stopPlay();
 
   /* ---------- the tab ---------- */
   window.renderQuran = function (force) {
@@ -127,11 +241,17 @@
     document.querySelectorAll(".nov").forEach(x => x.remove());
     const x = info(n), r = recOf(child, n), parent = isParent();
     const ov = el("div", "nov"), card = el("div", "novcard qsheet"), close = el("button", "ghost", "Close"), st = el("div", "status");
-    close.onclick = () => { if (rec && rec.state === "recording") rec.stop(); ov.remove(); };
+    close.onclick = () => { if (rec && rec.state === "recording") rec.stop(); stopPlay(); ov.remove(); };
     const head = el("div", "phhead"); head.append(el("h2", null, x[1]), close);
     card.append(head, el("div", "qbigar", x[2]), el("p", "note", "Surah " + n + " · " + x[3] + " verses · " + ptsFor(x[3]) + " points"));
-    const lb = el("button", "ghost", "▶ Listen"); lb.onclick = () => listen(n, lb);
-    const tools = el("div", "right left"); tools.append(lb); card.append(tools);
+    // listen normally, or open Memorize mode (repeat, pause to say it back, slower, verse range, verse text)
+    const lb = el("button", "ghost", "▶ Listen"), mb = el("button", "primary memob", "🧠 Memorize mode");
+    let panel = null;
+    lb.onclick = () => { if (job) { stopPlay(); lb.textContent = "▶ Listen"; return; }
+      lb.textContent = "■ Stop"; startPlay({ n, from: 1, to: x[3], reciter: memo.reciter, repeat: 1, pause: false, speed: memo.speed, onUpdate: u => { if (u.state === "done" || u.state === "stopped") lb.textContent = "▶ Listen"; } }); };
+    mb.onclick = () => { if (panel) { stopPlay(); panel.remove(); panel = null; mb.textContent = "🧠 Memorize mode"; return; }
+      stopPlay(); lb.textContent = "▶ Listen"; panel = memoPanel(n, x[3]); tools.after(panel); mb.textContent = "Close memorize mode"; };
+    const tools = el("div", "right left"); tools.append(mb, lb); card.append(tools);
     if (r) {
       const txt = { approved: "✨ Memorized" + (r.points ? " · +" + r.points + " points" : ""), known: "✓ Already knew it (no points)", pending: "⏳ Waiting for Mom or Dad", review: "🔁 Practice a bit more, then try again" }[r.status];
       card.append(el("p", "qstate q-" + r.status, txt + (r.decidedBy ? " · " + r.decidedBy + (r.decided ? ", " + fmtD(r.decided) : "") : "")));
@@ -228,5 +348,18 @@
   .qstate{margin:0;font-weight:600}.qstate.q-approved{color:#8a5a12}.qstate.q-known{color:var(--done)}.qstate.q-pending{color:var(--accent)}.qstate.q-review{color:var(--late)}
   .qsheet{max-height:88vh;overflow:auto}
   .fcard.qpend{border:1px dashed var(--accent)}
+  .memob{min-height:40px}
+  .memo{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:var(--bg);border:1px solid var(--line)}
+  .memorow{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .memolab{font-size:13px;font-weight:600;color:var(--muted)}
+  .memorow select{width:auto;max-width:100%;padding:7px 8px}
+  .memorow .seg button{padding:6px 10px;font-size:13px}
+  .memorange{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}.memorange select{width:auto;padding:6px 8px}
+  .memonow{display:flex;flex-direction:column;gap:6px}
+  .memostate{font-size:14px;font-weight:700;color:var(--accent);min-height:1.3em}.memostate.turn{color:var(--gold)}.memostate.err{color:var(--late)}
+  .memotext{font-family:"Amiri","Noto Naskh Arabic","Geeza Pro",serif;font-size:28px;line-height:1.9;text-align:center;min-height:0}
+  .memoverses{font-family:"Amiri","Noto Naskh Arabic","Geeza Pro",serif;font-size:20px;line-height:2.1;text-align:justify;max-height:220px;overflow:auto;padding:8px;border-top:1px solid var(--line)}
+  .mv{cursor:pointer;border-radius:6px;padding:0 2px}.mv.on{background:#fbf1d8;color:#6b4200}
+  @media (prefers-color-scheme:dark){.mv.on{background:#3d3018;color:#f0c870}}
   </style>`);
 })();
