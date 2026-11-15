@@ -110,9 +110,11 @@
   header.withcd h1{white-space:nowrap}
   .cdshort{display:none}
   /* one size on phone, iPad and computer: a small card on the right of the date and next-prayer lines */
-  header.withcd{display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:center}
+  header.withcd{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;align-items:center}
   header.withcd > *{grid-column:1 / -1}
-  header.withcd #datestr,header.withcd #nextline{grid-column:1;font-size:14px;white-space:nowrap}
+  header.withcd #datestr,header.withcd #nextline{grid-column:1;font-size:14px;min-width:0}
+  header.withcd #datestr{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header.withcd #nextline{line-height:1.3}                     /* long lines ("All of today's prayers have started") wrap instead of pushing the card off screen */
   header.withcd .meetcd{grid-column:2;grid-row:3 / span 2;align-self:center;padding:4px 6px 5px;gap:3px;border-radius:9px}
   .cdtop b,.cdshort{font-size:9px}.cdshort{display:inline;font-weight:600;opacity:.85}
   .cdlab,.cdpill{display:none}
