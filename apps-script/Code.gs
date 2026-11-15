@@ -148,7 +148,7 @@ function handle_(p) {
     const text = String(p.text || '').trim().slice(0, 500);
     const audio = String(p.audio || '');
     if (!text && !audio) return bad('Write or record your request.');
-    if (audio && !/^data:audio\/[\w.+-]+(;[\w=.+-]+)*;base64,/.test(audio)) return bad('Bad recording.');
+    if (audio && !/^data:audio\/[\w.+-]+[^,]*;base64,/.test(audio)) return bad('Bad recording.');
     if (audio.length > CELL * 12) return bad('The recording is too long (keep it under a minute).');
     return locked_(() => {
       const id = 'r' + Date.now().toString(36);
@@ -187,7 +187,7 @@ function handle_(p) {
     if (KIDS.indexOf(user) < 0) return bad('Only Yousuf and Eva can send a recitation.');
     const n = Number(p.surah); if (!SURAHS[n]) return bad('Choose a surah from the list.');
     const audio = String(p.audio || '');
-    if (audio && !/^data:audio\/[\w.+-]+(;[\w=.+-]+)*;base64,/.test(audio)) return bad('Bad recording.');
+    if (audio && !/^data:audio\/[\w.+-]+[^,]*;base64,/.test(audio)) return bad('Bad recording.');
     if (audio.length > CELL * 20) return bad('The recording is too long (keep it under 2 minutes).');
     return locked_(() => {
       const qs = sheet_('Quran', QURAN_HEAD), qn = qs.getLastRow();

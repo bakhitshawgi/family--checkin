@@ -24,6 +24,12 @@
     const rs = list().filter(q => q.child === child && q.surah === n);
     return rs.find(q => q.status === "approved") || rs.find(q => q.status === "known") || rs.find(q => q.status === "pending") || rs.sort((a, b) => b.created - a.created)[0] || null;
   };
+  const cleanAudio = (dataUrl, blob) => {
+    const b64 = dataUrl.slice(dataUrl.indexOf("base64,") + 7);
+    let mime = String((blob && blob.type) || "").split(";")[0].trim().toLowerCase();
+    if (!/^audio\/[\w.+-]+$/.test(mime)) mime = /webm/.test(dataUrl.slice(0, 60)) ? "audio/webm" : "audio/mp4";
+    return "data:" + mime + ";base64," + b64;
+  };
   const setMsg = (st, m, err) => { st.className = "status" + (err ? " err" : ""); st.textContent = m; };
 
   /* points that count for a month (used by the month table / stats in index.html) */
@@ -289,7 +295,7 @@
       send.onclick = async () => {
         send.disabled = true; setMsg(st, "Sending…");
         try {
-          const audio = recBlob && recFor === n ? await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result)); fr.onerror = rej; fr.readAsDataURL(recBlob); }) : "";
+          const audio = recBlob && recFor === n ? cleanAudio(await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result)); fr.onerror = rej; fr.readAsDataURL(recBlob); }), recBlob) : "";
           if (audio.length > 900000) throw new Error("The recording is too long. Try a shorter one.");
           await apiPost({ ...auth(), action: "quran_submit", surah: n, audio });
           recBlob = null; await load(); ov.remove(); window.renderQuran(true);

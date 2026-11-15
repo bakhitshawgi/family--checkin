@@ -353,7 +353,13 @@
       if (s >= MAX_REC_SECONDS && rec.state === "recording") rec.stop();
     }, 250);
   }
-  const toDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error("Couldn't read the recording.")); r.readAsDataURL(blob); });
+  const cleanAudio = (dataUrl, blob) => {
+    const b64 = dataUrl.slice(dataUrl.indexOf("base64,") + 7);
+    let mime = String((blob && blob.type) || "").split(";")[0].trim().toLowerCase();
+    if (!/^audio\/[\w.+-]+$/.test(mime)) mime = /webm/.test(dataUrl.slice(0, 60)) ? "audio/webm" : "audio/mp4";
+    return "data:" + mime + ";base64," + b64;
+  };
+  const toDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(cleanAudio(String(r.result), blob)); r.onerror = () => rej(new Error("Couldn't read the recording.")); r.readAsDataURL(blob); });
 
   function requestCard(r, box, st) {
     const parent = isParent(), c = el("div", "fcard req-" + r.status), top = el("div", "fhead"), tx = el("div", "fmain");
