@@ -146,9 +146,9 @@ function handle_(p) {
   if (action === 'request_add') {
     if (KIDS.indexOf(user) < 0) return bad('Only Yousuf and Eva can send requests.');
     const text = String(p.text || '').trim().slice(0, 500);
-    const audio = String(p.audio || '');
+    const audio = normAudio_(p.audio);
     if (!text && !audio) return bad('Write or record your request.');
-    if (audio && !/^data:audio\/[\w.+-]+[^,]*;base64,/.test(audio)) return bad('Bad recording.');
+    if (p.audio && !audio) return bad('Bad recording.');
     if (audio.length > CELL * 12) return bad('The recording is too long (keep it under a minute).');
     return locked_(() => {
       const id = 'r' + Date.now().toString(36);
@@ -186,8 +186,8 @@ function handle_(p) {
   if (action === 'quran_submit') {                   // child: "I memorized this surah" (with a recording, or recited to Dad / Mom)
     if (KIDS.indexOf(user) < 0) return bad('Only Yousuf and Eva can send a recitation.');
     const n = Number(p.surah); if (!SURAHS[n]) return bad('Choose a surah from the list.');
-    const audio = String(p.audio || '');
-    if (audio && !/^data:audio\/[\w.+-]+[^,]*;base64,/.test(audio)) return bad('Bad recording.');
+    const audio = normAudio_(p.audio);
+    if (p.audio && !audio) return bad('Bad recording.');
     if (audio.length > CELL * 20) return bad('The recording is too long (keep it under 2 minutes).');
     return locked_(() => {
       const qs = sheet_('Quran', QURAN_HEAD), qn = qs.getLastRow();
@@ -366,6 +366,14 @@ function findRow_(sh, col, value) {
   const vals = sh.getRange(2, col, n - 1, 1).getValues();
   for (let i = 0; i < vals.length; i++) if (String(vals[i][0]) === String(value)) return i + 2;
   return 0;
+}
+// any "data:<something>;base64,<data>" becomes "data:audio/<type>;base64,<data>"; returns "" if there is no base64 data
+function normAudio_(v) {
+  v = String(v || ''); const i = v.indexOf('base64,'); if (!v || i < 0) return '';
+  const data = v.slice(i + 7).replace(/\s/g, ''); if (!data || /[^A-Za-z0-9+/=]/.test(data)) return '';
+  let mime = (v.slice(5, i).split(';')[0] || '').trim().toLowerCase();
+  if (!/^audio\/[a-z0-9.+-]+$/.test(mime)) mime = /webm/.test(v.slice(0, i)) ? 'audio/webm' : 'audio/mp4';
+  return 'data:' + mime + ';base64,' + data;
 }
 function saveAudio_(audio) {
   const audioId = 'a' + Date.now().toString(36);

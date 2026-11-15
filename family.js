@@ -320,11 +320,19 @@
       if (!reqDraft.trim() && !recBlob) { setMsg(st, "Write or record your request first.", true); return; }
       send.disabled = true; setMsg(st, "Sending…");
       try {
-        const audio = recBlob ? await toDataUrl(recBlob) : "";
-        if (audio.length > 540000) throw new Error("The recording is too long. Record a shorter one.");
-        await apiPost({ ...auth(), action: "request_add", text: reqDraft.trim(), audio });
+        let audio = "";
+        try { audio = recBlob ? await recToDataUrl(recBlob) : ""; } catch (e) { audio = ""; }
+        let withVoice = !!audio;
+        if (audio.length > 540000) { audio = ""; withVoice = false; }
+        const text = reqDraft.trim() || (recBlob ? "🎤 (voice message)" : "");
+        try { await apiPost({ ...auth(), action: "request_add", text, audio }); }
+        catch (e) {
+          if (!audio || e.code === "net" || e.code === "login") throw e;
+          await apiPost({ ...auth(), action: "request_add", text: text || "🎤 (voice message)", audio: "" }); withVoice = false;
+        }
+        const hadRec = !!recBlob;
         reqDraft = ""; recBlob = null; await load(); window.renderFamily("requests", true);
-        const s2 = $("reqstatus"); if (s2) setMsg(s2, "Sent! Mom and Dad will answer soon.");
+        const s2 = $("reqstatus"); if (s2) setMsg(s2, hadRec && !withVoice ? "Sent! (The voice part couldn't be saved – tell Mom or Dad.)" : "Sent! Mom and Dad will answer soon.");
       } catch (e) { send.disabled = false; setMsg(st, oldScript(e) ? "Requests need the updated Google script." : e.message, true); }
     };
     f.append(l, recRow, send, st);
@@ -353,6 +361,13 @@
       if (s >= MAX_REC_SECONDS && rec.state === "recording") rec.stop();
     }, 250);
   }
+  const recToDataUrl = async blob => {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    let mime = String(blob.type || "").split(";")[0].trim().toLowerCase();
+    if (!/^audio\/[a-z0-9.+-]+$/.test(mime)) mime = /webm/.test(String(blob.type)) ? "audio/webm" : "audio/mp4";
+    return "data:" + mime + ";base64," + btoa(bin);
+  };
   const cleanAudio = (dataUrl, blob) => {
     const b64 = dataUrl.slice(dataUrl.indexOf("base64,") + 7);
     let mime = String((blob && blob.type) || "").split(";")[0].trim().toLowerCase();

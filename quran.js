@@ -24,6 +24,13 @@
     const rs = list().filter(q => q.child === child && q.surah === n);
     return rs.find(q => q.status === "approved") || rs.find(q => q.status === "known") || rs.find(q => q.status === "pending") || rs.sort((a, b) => b.created - a.created)[0] || null;
   };
+  const recToDataUrl = async blob => {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    let mime = String(blob.type || "").split(";")[0].trim().toLowerCase();
+    if (!/^audio\/[a-z0-9.+-]+$/.test(mime)) mime = /webm/.test(String(blob.type)) ? "audio/webm" : "audio/mp4";
+    return "data:" + mime + ";base64," + btoa(bin);
+  };
   const cleanAudio = (dataUrl, blob) => {
     const b64 = dataUrl.slice(dataUrl.indexOf("base64,") + 7);
     let mime = String((blob && blob.type) || "").split(";")[0].trim().toLowerCase();
@@ -295,11 +302,19 @@
       send.onclick = async () => {
         send.disabled = true; setMsg(st, "Sending…");
         try {
-          const audio = recBlob && recFor === n ? cleanAudio(await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result)); fr.onerror = rej; fr.readAsDataURL(recBlob); }), recBlob) : "";
-          if (audio.length > 900000) throw new Error("The recording is too long. Try a shorter one.");
-          await apiPost({ ...auth(), action: "quran_submit", surah: n, audio });
+          let audio = "";
+          try { audio = recBlob && recFor === n ? await recToDataUrl(recBlob) : ""; } catch (e) { audio = ""; }
+          let withVoice = !!audio;
+          if (audio.length > 900000) { audio = ""; withVoice = false; }               // too long to store: send without the voice
+          try { await apiPost({ ...auth(), action: "quran_submit", surah: n, audio }); }
+          catch (e) {
+            if (!audio || e.code === "net" || e.code === "login" || /already/i.test(e.message)) throw e;
+            await apiPost({ ...auth(), action: "quran_submit", surah: n, audio: "" });   // voice refused: send it anyway, without the voice
+            withVoice = false;
+          }
+          const hadRec = !!(recBlob && recFor === n);
           recBlob = null; await load(); ov.remove(); window.renderQuran(true);
-          const s2 = $("qstatus"); if (s2) setMsg(s2, "Sent! Mom or Dad will listen soon. 🌟");
+          const s2 = $("qstatus"); if (s2) setMsg(s2, hadRec && !withVoice ? "Sent to Mom and Dad! 🌟 (The voice recording couldn't be saved, so recite it to them.)" : "Sent! Mom or Dad will listen soon. 🌟");
         } catch (e) { send.disabled = false; setMsg(st, oldScript(e) ? "The Quran tab needs the updated Google script." : e.message, true); }
       };
       card.append(row, send);
