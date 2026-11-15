@@ -149,7 +149,7 @@ function handle_(p) {
     const audio = normAudio_(p.audio);
     if (!text && !audio) return bad('Write or record your request.');
     if (p.audio && !audio) return bad('Bad recording.');
-    if (audio.length > CELL * 12) return bad('The recording is too long (keep it under a minute).');
+    if (audio.length > CELL * 60) return bad('The recording is too big (about 2 MB at most).');
     return locked_(() => {
       const id = 'r' + Date.now().toString(36);
       let audioId = '';
@@ -188,7 +188,7 @@ function handle_(p) {
     const n = Number(p.surah); if (!SURAHS[n]) return bad('Choose a surah from the list.');
     const audio = normAudio_(p.audio);
     if (p.audio && !audio) return bad('Bad recording.');
-    if (audio.length > CELL * 20) return bad('The recording is too long (keep it under 2 minutes).');
+    if (audio.length > CELL * 60) return bad('The recording is too big (about 2 MB at most).');
     return locked_(() => {
       const qs = sheet_('Quran', QURAN_HEAD), qn = qs.getLastRow();
       const open = qn < 2 ? [] : qs.getRange(2, 1, qn - 1, 7).getValues().filter(r => r[2] === user && Number(r[3]) === n && ['pending', 'approved', 'known'].indexOf(r[6]) >= 0);

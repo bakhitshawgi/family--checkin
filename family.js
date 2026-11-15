@@ -310,6 +310,7 @@
     const rb = el("button", "recb" + (rec && rec.state === "recording" ? " on" : ""), rec && rec.state === "recording" ? "■ Stop" : "🎤 Record voice"); rb.id = "recbtn";
     rb.onclick = () => rec && rec.state === "recording" ? rec.stop() : startRec(st);
     recRow.append(rb);
+    if (!(rec && rec.state === "recording")) recRow.append(uploadButton("📁 Upload", blob => { recBlob = blob; renderRequests(box); }, m => setMsg(st, m, true)));
     if (recBlob) {
       const a = document.createElement("audio"); a.controls = true; a.src = URL.createObjectURL(recBlob); a.className = "aud";
       const del = el("button", "ghost", "Delete recording"); del.onclick = () => { recBlob = null; renderRequests(box); };
@@ -323,7 +324,7 @@
         let audio = "";
         try { audio = recBlob ? await recToDataUrl(recBlob) : ""; } catch (e) { audio = ""; }
         let withVoice = !!audio;
-        if (audio.length > 540000) { audio = ""; withVoice = false; }
+        if (audio.length > 2700000) { audio = ""; withVoice = false; }
         const text = reqDraft.trim() || (recBlob ? "🎤 (voice message)" : "");
         try { await apiPost({ ...auth(), action: "request_add", text, audio }); }
         catch (e) {
@@ -368,6 +369,22 @@
     if (!/^audio\/[a-z0-9.+-]+$/.test(mime)) mime = /webm/.test(String(blob.type)) ? "audio/webm" : "audio/mp4";
     return "data:" + mime + ";base64," + btoa(bin);
   };
+  const MAX_UPLOAD = 1.9 * 1024 * 1024;                 // ~2 MB (about 2.6 million characters once encoded)
+  const AUDIO_EXT = { m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg", webm: "audio/webm", caf: "audio/x-caf", "3gp": "audio/3gpp", amr: "audio/amr" };
+  function audioFromFile(file) {
+    const ext = (String(file.name || "").split(".").pop() || "").toLowerCase();
+    const type = /^audio\//.test(file.type) ? file.type : AUDIO_EXT[ext] || (/^video\/(mp4|quicktime)/.test(file.type) ? "audio/mp4" : "");
+    if (!type) throw new Error("That file isn't a sound recording. Choose an audio file (m4a, mp3, wav…).");
+    if (file.size > MAX_UPLOAD) throw new Error("That recording is too big (" + (file.size / 1048576).toFixed(1) + " MB). The limit is about 2 MB – record it here instead, or trim it.");
+    return new Blob([file], { type });
+  }
+  function uploadButton(label, onBlob, onError) {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "audio/*,.m4a,.mp3,.wav,.aac,.ogg,.webm,.caf"; inp.className = "phfile";
+    inp.id = "up" + Math.random().toString(36).slice(2, 8);
+    const lab = el("label", "upbtn", label); lab.htmlFor = inp.id;
+    inp.onchange = () => { const f = inp.files && inp.files[0]; inp.value = ""; if (!f) return; try { onBlob(audioFromFile(f)); } catch (e) { onError(e.message); } };
+    const w = el("span", "upwrap"); w.append(lab, inp); return w;
+  }
   const cleanAudio = (dataUrl, blob) => {
     const b64 = dataUrl.slice(dataUrl.indexOf("base64,") + 7);
     let mime = String((blob && blob.type) || "").split(";")[0].trim().toLowerCase();
@@ -453,6 +470,7 @@
   .rtext{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
   .reply{margin:0;font-size:14px;color:var(--accent);overflow-wrap:anywhere}
   .right.left{justify-content:flex-start}
+  .upwrap{display:inline-flex}.upbtn{display:inline-flex;flex-direction:row;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:10px 14px;font-size:15px;font-weight:600;cursor:pointer}
   .recb{background:var(--surface);border:1px solid var(--line);color:var(--fg)}.recb.on{background:var(--late);color:#fff;border-color:var(--late)}
   .aud{width:100%;max-width:320px;height:40px}
   .phhead{display:flex;justify-content:space-between;align-items:center}
