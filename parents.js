@@ -98,7 +98,8 @@
       const dayset = new Set(per.days.map(dayKey));       // Quran memorization points approved in this period
       const qp = k.kid && Array.isArray(window.quran) ? window.quran.filter(q => q.child === k.id && q.status === "approved" && q.decided && dayset.has(dayKey(parts(q.decided)))).reduce((a, q) => a + q.points, 0) : 0;
       const jum = per.days.filter(d => entries.some(e => e.child === k.id && e.day === dayKey(d) && e.jumuah && OK.includes(e.key))).length;
-      const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "") + (jum ? " · 🕌 Jumu'ah ×" + jum : "") + (qp ? " · 📖 Quran +" + pts(qp) : "")));
+      const dk = new Set(per.days.map(dayKey)), mos = entries.filter(e => e.child === k.id && e.mosque && OK.includes(e.key) && dk.has(e.day)).length;
+      const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "") + (jum ? " · 🕌 Jumu'ah ×" + jum : "") + (mos ? " · 🕌 Mosque ×" + mos : "") + (qp ? " · 📖 Quran +" + pts(qp) : "")));
       head.append(av(k.id, "av"), name);
       const bars = el("div", "sbar");
       [["ontime", "ok"], ["late", "lt"], ["verylate", "vl"], ["missed", "ms"]].forEach(([key, cls]) => {
@@ -137,8 +138,8 @@
       const list = el("div", "dlist");
       ss.forEach((s, i) => {
         const p = PRAYERS[i], row = el("div", "drow " + ({ ontime: "ok", late: "lt", verylate: "vl", missed: "ms" }[s.key] || "nx"));
-        row.append(icon(p.toLowerCase(), "ticon"), el("span", "dp", s.e && s.e.jumuah ? "Jumu'ah" : p));
-        row.append(el("span", "ds", s.e ? STAT_TXT[s.key] + " · " + fmtT(s.e.at) + (s.e.by !== id ? " · by " + s.e.by : "") : STAT_TXT[s.key] || s.key));
+        row.append(icon(s.e && (s.e.jumuah || s.e.mosque) ? "mosque" : p.toLowerCase(), "ticon"), el("span", "dp", s.e && s.e.jumuah ? "Jumu'ah" : p));
+        row.append(el("span", "ds", s.e ? STAT_TXT[s.key] + (s.e.mosque ? " · at the mosque" : "") + " · " + fmtT(s.e.at) + (s.e.by !== id ? " · by " + s.e.by : "") : STAT_TXT[s.key] || s.key));
         list.append(row);
       });
       card.append(list);
@@ -173,6 +174,7 @@
         b.textContent = s.e ? fmtT(s.e.at).replace(/\s?[AP]M$/i, "") : s.key === "missed" ? "✕" : s.key === "before" ? "–" : "·";
         if (n) b.append(el("span", "ndot", "✎"));
         if (s.e && s.e.jumuah) b.append(el("span", "jdot", "J"));
+        else if (s.e && s.e.mosque) b.append(el("span", "jdot", "M"));
         b.setAttribute("aria-label", p + " " + dayLabel(d) + ": " + (s.e ? s.e.label + " at " + fmtT(s.e.at) : s.key) + (n ? ", has a note" : ""));
         b.onclick = () => { trackSel = { day: s.day, prayer: p, d }; renderTracker(); };
         const td = el("td"); td.append(b); tr.append(td);
@@ -186,7 +188,7 @@
 
   function detail(child, d, prayer) {
     const s = statusOf(child, d, prayer, Date.now()), n = noteFor(child, s.day, prayer), card = el("div", "tdetail");
-    const label = s.e ? (s.e.jumuah ? "🕌 Jumu'ah · " : "") + s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
+    const label = s.e ? (s.e.jumuah ? "🕌 Jumu'ah · " : s.e.mosque ? "🕌 At the mosque · " : "") + s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
       : s.key === "missed" ? "Not prayed (missed)" : s.key === "before" ? "Before tracking started" : s.key === "open" ? "Time is open now (until " + fmtT(s.w.end) + ")" : "Not due yet (starts " + fmtT(s.w.start) + ")";
     card.append(el("b", null, child + " · " + prayer + " · " + dayLabel(d)), el("div", "note", "Adhan " + fmtT(s.w.start) + " · " + label));
     const isKid = KIDS.some(k => k.id === child);

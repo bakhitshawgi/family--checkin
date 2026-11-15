@@ -5,7 +5,7 @@
  * Deploy → Manage deployments → ✏️ → Version: New version → Deploy (keeps the same URL).
  *
  * Tabs it uses (created automatically):
- *   Log      – every prayer:   Timestamp | Child | Prayer | Marked by | Lat | Lng | Place | Type  (no place = Toronto; Type "Jumuah" = Friday Dhuhr prayed as Jumu'ah)
+ *   Log      – every prayer:   Timestamp | Child | Prayer | Marked by | Lat | Lng | Place | Type  (no place = Toronto; Type "Jumuah" = Friday Dhuhr prayed as Jumu'ah, "Mosque" = prayed at the mosque)
  *   Notes    – parents' notes: Date | Child | Prayer | Note | By | Updated
  *   Tasks    – ID | Created | By | Child | Type | Title | Due | Status | Rating | Updated | Child note
  *   Requests – ID | Created | Child | Text | Audio ID | Status | Decided by | Decided | Reply
@@ -272,7 +272,7 @@ function handle_(p) {
         const lat = Number(p.lat), lng = Number(p.lng);   // place the prayer times were counted for (nearest city, never exact GPS)
         const okLoc = isFinite(lat) && isFinite(lng) && lat !== 0 && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
         const jumuah = p.kind === 'Jumuah' && p.prayer === 'Dhuhr' && Utilities.formatDate(new Date(at), TZ, 'EEE') === 'Fri';   // Friday only
-        sh.appendRow([new Date(at), child, p.prayer, user, okLoc ? Math.round(lat * 100) / 100 : '', okLoc ? Math.round(lng * 100) / 100 : '', okLoc ? String(p.place || '').slice(0, 60) : '', jumuah ? 'Jumuah' : '']);
+        sh.appendRow([new Date(at), child, p.prayer, user, okLoc ? Math.round(lat * 100) / 100 : '', okLoc ? Math.round(lng * 100) / 100 : '', okLoc ? String(p.place || '').slice(0, 60) : '', jumuah ? 'Jumuah' : p.kind === 'Mosque' ? 'Mosque' : '']);
         return { ok: true, at: at };
       }
       const last = sh.getLastRow();

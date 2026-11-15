@@ -97,6 +97,7 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .fribtn.late{border-color:var(--late)}.fribtn.jum.late{background:var(--late);color:#fff}
 .fricon{display:block;width:40px;height:40px;color:var(--accent)}.fribtn.jum .fricon{color:var(--accent-ink)}.fribtn.jum.late .fricon{color:#fff}.fricon svg{width:100%;height:100%;display:block}
 .fribtn:disabled{opacity:.5}
+.frisub{font-size:11px;font-weight:700;opacity:.85;margin-top:-2px}
 .pextra{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:8px;border-top:1px solid var(--line)}
 .pextra .learnwide{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--accent);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
 .pextra .learnwide svg{width:16px;height:16px}
@@ -177,6 +178,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
       <li>Late, up to 2 hours after that: ½ point</li>
       <li>More than 2 hours late: ¼ point</li>
       <li>Jumu'ah counts double: 2 points on time</li>
+      <li>Prayed at the mosque: double points (2 on time)</li>
       <li>Memorizing a surah (Quran tab): 10 points up to 10 verses, 15 points for 11–20 verses</li>
       <li>1 point = $0.25</li>
     </ul>
@@ -225,7 +227,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
 <script>
 /* ===== Settings ===== */
 const CONFIG = { scriptUrl: "https://script.google.com/macros/s/AKfycbwUy58Rh6waff-ylUi3tFNydKCKtES9JDuwuaFN-JAzCMw2luEi7tuwmQqhSPRwVnKg5g/exec" };      // Google Apps Script web-app URL (…/exec)
-const RULES = { onTime: 1, late: 0.5, veryLate: 0.25, lateHours: 2, dollarsPerPoint: 0.25, jumuah: 2 };   // jumuah: Friday prayer counts double
+const RULES = { onTime: 1, late: 0.5, veryLate: 0.25, lateHours: 2, dollarsPerPoint: 0.25, jumuah: 2, mosque: 2 };   // Jumu'ah and prayers at the mosque count double
 const KIDS = [{ id: "Yousuf", kind: "boy" }, { id: "Eva", kind: "girl" }];
 const PRAYERS = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
 const NEXT_END = { Fajr: "sunrise", Dhuhr: "asr", Asr: "maghrib", Maghrib: "isha" };
@@ -307,18 +309,19 @@ function process(rows) {
   return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place, kind]) => {
     const loc = lat !== "" && lat != null && !isNaN(+lat) && lat !== 0 ? { lat: +lat, lng: +lng, name: place || "" } : TORONTO;   // older rows: Toronto
     const c = classify(at, prayer, loc), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
-    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", day, month: day.slice(0, 7), ...c };
-    if (e.jumuah) e.points *= RULES.jumuah;
+    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", mosque: kind === "Mosque", day, month: day.slice(0, 7), ...c };
+    if (e.jumuah) e.points *= RULES.jumuah; else if (e.mosque) e.points *= RULES.mosque;   // not both: Jumu'ah is already at the mosque
     if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
     return e;
   });
 }
 
-const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place, e.jumuah ? "Jumuah" : ""];
+const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place, e.jumuah ? "Jumuah" : e.mosque ? "Mosque" : ""];
 // Friday: Dhuhr can be prayed as Jumu'ah (same time window, same points)
 const isFriday = p => new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() === 5;
 const jumuahDay = (prayer, p) => prayer === "Dhuhr" && isFriday(p);
 const pname = e => e.jumuah ? "Jumu'ah" : e.prayer;
+const where = e => e.mosque ? " at the mosque" : "";
 const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 
 /* ===== API ===== */
@@ -359,7 +362,7 @@ async function confirmPrayer(prayer, btn, kind) {
   try {
     const j = await api({ ...auth(), action: "add", prayer, kind: kind || "", ...here() });
     entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind || ""]]);
-    const e = entries.find(x => x.at === j.at), nm = pname(e);
+    const e = entries.find(x => x.at === j.at), nm = pname(e) + where(e);
     say(e.key === "ontime" ? "Well done! " + nm + " on time: +" + pts(e.points) + (e.points === 1 ? " point" : " points") :
         e.key === "dup" ? "Already saved earlier today." :
         nm + " saved as " + e.label.toLowerCase() + ": +" + pts(e.points) + " point");
@@ -396,9 +399,10 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel, presetKind) {
   inp.value = hhmm(Math.min(now, w.end)); inp.setAttribute("aria-label", "Time " + kid + " prayed " + prayer);
   const ok = el("button", "primary", "Save"), cancel = el("button", "ghost", "Cancel");
   let kindSel = null;
-  if (jumuahDay(prayer, dayP) && presetKind == null) {
-    kindSel = document.createElement("select"); kindSel.className = "kindsel"; kindSel.setAttribute("aria-label", "Dhuhr or Jumu'ah");
-    [["Jumuah", "🕌 Jumu'ah"], ["", "Dhuhr"]].forEach(([v, t]) => { const o = el("option", null, t); o.value = v; kindSel.append(o); });
+  if (presetKind == null) {
+    kindSel = document.createElement("select"); kindSel.className = "kindsel"; kindSel.setAttribute("aria-label", "Where");
+    (jumuahDay(prayer, dayP) ? [["Jumuah", "🕌 Jumu'ah"], ["", "Dhuhr"], ["Mosque", "🕌 Dhuhr at the mosque (×2)"]] : [["", "Prayed"], ["Mosque", "🕌 At the mosque (×2)"]])
+      .forEach(([v, t]) => { const o = el("option", null, t); o.value = v; kindSel.append(o); });
   }
   cancel.onclick = () => (onCancel || render)();
   ok.onclick = async () => {
@@ -414,10 +418,10 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel, presetKind) {
       entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind]]);
       const e = entries.find(x => x.at === j.at && x.child === kid);
       (onDone || render)();
-      msg("Saved: " + kid + " – " + pname(e) + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
+      msg("Saved: " + kid + " – " + pname(e) + where(e) + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
     } catch (err) { ok.disabled = false; msg(err.message, true); }
   };
-  const lab = el("label", "note", kid + " prayed " + (kindSel ? "Dhuhr or Jumu'ah" : presetKind === "Jumuah" ? "Jumu'ah" : prayer) + " at"); lab.htmlFor = inp.id;
+  const lab = el("label", "note", kid + " prayed " + (presetKind === "Jumuah" ? "Jumu'ah" : prayer) + (presetKind === "Mosque" ? " at the mosque" : "") + " at"); lab.htmlFor = inp.id;
   form.append(lab); if (kindSel) form.append(kindSel); form.append(inp, ok, cancel);
   setTimeout(() => inp.focus(), 0);
   return form;
@@ -428,14 +432,18 @@ function openMark(prayer, kid, w, right, kind) {
   right.hidden = true; right.parentElement.append(markForm(prayer, kid, parts(Date.now()), w, null, null, null, kind));
 }
 // Friday: two big buttons, each with its own icon
-function friButtons(right, late, onPick) {
-  right.classList.add("two");
-  [["Jumuah", "mosque", "Jumu'ah"], ["", "dhuhr", "Dhuhr"]].forEach(([kind, ic, label]) => {
+function choiceButtons(right, late, items, onPick) {
+  right.classList.add("wide", "two");
+  items.forEach(([kind, ic, label, sub]) => {
     const b = el("button", "fribtn" + (kind ? " jum" : "") + (late ? " late" : ""));
     b.append(icon(ic, "fricon"), el("span", null, label + (late ? " (late)" : "")));
+    if (sub) b.append(el("small", "frisub", sub));
     b.onclick = () => onPick(kind, b); right.append(b);
   });
 }
+const friButtons = (right, late, onPick) => choiceButtons(right, late, [["Jumuah", "mosque", "Jumu'ah", "×2 points"], ["", "dhuhr", "Dhuhr"]], onPick);
+// every other prayer: prayed (home / anywhere) or at the mosque (double points)
+const prayButtons = (right, late, p, onPick) => choiceButtons(right, late, [["", p.toLowerCase(), "Prayed"], ["Mosque", "mosque", "At the mosque", "×2 points"]], onPick);
 const av = (id, cls) => window.avatar ? window.avatar(id, cls) : icon(kidKind(id), cls);
 // avatar you can tap to change the photo (your own; parents also the children's)
 function photoAv(id) {
@@ -556,14 +564,14 @@ function render() {
     const w = windowFor(p, tp), row = el("div", "prow" + (admin ? " parent" : "")), left = el("div", "pleft"), tx = el("div"), right = el("div", "right");
     const fri = jumuahDay(p, tp);
     const done = entries.find(e => e.child === kid && e.day === today && e.prayer === p && (e.key === "ontime" || e.key === "late" || e.key === "verylate"));
-    if (fri) right.classList.add("wide");          // Friday: buttons / result on their own line
+    if (fri || (done && done.mosque)) right.classList.add("wide");   // Friday / mosque: result on its own line
     tx.append(el("div", "pname", fri ? (done ? pname(done) : "Dhuhr / Jumu'ah") : p), el("div", "ptime", fmtT(w.start) + " – " + (p === "Isha" ? "midnight" : fmtT(w.end))));
-    left.append(icon(done && done.jumuah ? "mosque" : p.toLowerCase(), "picon"), tx);
+    left.append(icon(done && (done.jumuah || done.mosque) ? "mosque" : p.toLowerCase(), "picon"), tx);
     const extra = el("div", "pextra");
     if (window.openLearn) { const lb = el("button", "learnwide"); lb.innerHTML = window.LEARN_BOOK_ICON + "<span>How to pray " + p + "</span>"; lb.onclick = () => window.openLearn(p); extra.append(lb); }
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
-      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + (fri ? pname(done) + " " : "") + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
+      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + (done.mosque ? "🕌 " : "") + (fri ? pname(done) + " " : "") + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
       if (canRemove || (now - done.at < UNDO_MINUTES * 60000 && (!admin || done.by === session.user))) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
     } else if (now < w.start) {
       right.append(el("span", "chip", "Opens " + fmtT(w.start)));
@@ -572,16 +580,13 @@ function render() {
     } else if (admin && fri) {
       friButtons(right, false, kind => openMark(p, kid, w, right, kind));
     } else if (admin) {
-      const b = el("button", "primary markb", kid === session.user ? "Prayed" : "Mark prayed");
-      b.onclick = () => openMark(p, kid, w, right);
-      right.append(b);
+      prayButtons(right, false, p, kind => openMark(p, kid, w, right, kind));
     } else {
       const late = now > w.end; if (late) row.classList.add("late");
       if (fri) {                                    // Friday: which one did you pray?
         friButtons(right, late, (kind, b) => confirmPrayer(p, b, kind));
       } else {
-        const b = el("button", "primary" + (late ? " lateb" : ""), late ? "Prayed (late)" : "Prayed");
-        b.onclick = () => confirmPrayer(p, b); right.append(b);
+        prayButtons(right, late, p, (kind, b) => confirmPrayer(p, b, kind));
       }
     }
     if (admin && window.openNote && isKidId(kid)) {
@@ -621,7 +626,7 @@ function render() {
   if (!recent.length) hl.append(el("p", "note", "Nothing yet. Each Prayed tap shows up here."));
   recent.forEach(e => {
     const it = el("div", "hitem"), w = el("div", "what");
-    w.append(el("div", null, (admin ? e.child + " · " : "") + pname(e) + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at) + (e.by && e.by !== e.child ? " · marked by " + e.by : "")));
+    w.append(el("div", null, (admin ? e.child + " · " : "") + pname(e) + (e.mosque ? " 🕌" : "") + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at) + (e.by && e.by !== e.child ? " · marked by " + e.by : "")));
     const r = el("div", "right"); r.append(el("span", "chip " + (e.key === "ontime" ? "ok" : e.points ? "late" : ""), "+" + pts(e.points)));
     if (canRemove) { const u = el("button", "ghost", "Remove"); u.onclick = () => undo(e, u); r.append(u); }
     it.append(w, r); hl.append(it);
@@ -660,7 +665,7 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
-<script src="parents.js?v=20261114a"></script>
+<script src="parents.js?v=20261115a"></script>
 <script src="family.js?v=20261115c"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>
