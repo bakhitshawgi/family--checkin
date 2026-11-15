@@ -4,19 +4,29 @@
    Burgundy instead of orange. Counts down to the next Sunday 3:30 PM (Toronto), every week.
    Shown to Dad and the children. Uses the shared state from index.html: session, PT, zonedMs, parts, store. */
 (function () {
-  const MEETING = { weekday: 0, hour: 15, minute: 30, lastsHours: 3, title: "Our next meeting", who: ["Dad", "Yousuf", "Eva"] };
+  const MEETING = { title: "Our next meeting", who: ["Dad", "Yousuf", "Eva"] };
+  // weekly meetings with the children (Toronto time); the card counts down to whichever comes next, in that meeting's colour
+  const MEETINGS = [
+    { weekday: 0, hour: 15, minute: 30, lastsHours: 3, color: "burg" },   // Sunday 3:30 PM – burgundy
+    { weekday: 2, hour: 17, minute: 0, lastsHours: 2, color: "blue" },    // Tuesday 5:00–7:00 PM – blue
+  ];
   const box = document.getElementById("meetcd"); if (!box) return;
   const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // next meeting start (ms). While a meeting is on (start … start + lastsHours) this returns that meeting.
-  function nextMeeting(now) {
-    const t = parts(now);
+  let current = MEETINGS[0];
+  function nextMeeting(now) {                    // earliest meeting that hasn't ended yet
+    const t = parts(now); let best = null;
     for (let k = -7; k <= 14; k++) {
       const d = new Date(Date.UTC(t[0], t[1] - 1, t[2] + k));
-      if (d.getUTCDay() !== MEETING.weekday) continue;
-      const start = zonedMs(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), MEETING.hour, MEETING.minute);
-      if (now < start + MEETING.lastsHours * 3600e3) return start;
+      MEETINGS.forEach(m => {
+        if (d.getUTCDay() !== m.weekday) return;
+        const start = zonedMs(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), m.hour, m.minute);
+        if (now < start + m.lastsHours * 3600e3 && (!best || start < best.start)) best = { start, m };
+      });
     }
+    current = best.m; box.dataset.color = best.m.color;
+    return best.start;
   }
 
   let tiles = {}, built = "";
@@ -123,7 +133,8 @@
   /* only very small old phones (320 px) need it a little smaller to fit */
   @media (max-width:340px){ header.withcd h1{font-size:26px} header.withcd #datestr,header.withcd #nextline{font-size:12.5px}
     .cdtile{width:12px;height:18px}.cddig{font-size:11px}.cdsep{line-height:18px;height:18px;font-size:10px}.cdtop b,.cdshort{font-size:8px} }
-  @media (prefers-color-scheme:dark){ .meetcd{--burg1:#9b2a4c;--burg2:#4a0c1f} }
+  .meetcd[data-color=blue]{--burg1:#2f6fb8;--burg2:#173f73;box-shadow:0 4px 12px rgba(23,63,115,.3)}
+  @media (prefers-color-scheme:dark){ .meetcd{--burg1:#9b2a4c;--burg2:#4a0c1f} .meetcd[data-color=blue]{--burg1:#3a78c2;--burg2:#12305a} }
   </style>`);
   tick();
   function loop() { tick(); setTimeout(loop, 1000 - (Date.now() % 1000) + 5); }
