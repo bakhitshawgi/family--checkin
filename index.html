@@ -95,6 +95,8 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .markform .primary{min-width:90px;min-height:40px}
 .markb{min-width:0}
 .kindsel{width:auto;padding:8px}
+.mosquewrap{flex-basis:100%;display:flex;flex-direction:column;gap:6px}.mosquein{width:100%;padding:8px}
+.mqchips{display:flex;flex-wrap:wrap;gap:6px}.mqchip{background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600}
 .right.wide{grid-column:1/-1;justify-content:flex-start}
 .right.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 .fribtn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border-radius:12px;background:var(--surface);color:var(--fg);border:2px solid var(--accent);font-weight:700;font-size:16px}
@@ -311,22 +313,37 @@ function classify(at, prayer, loc) {
 /* rows: [ms, child, prayer] -> entries with status; duplicates (same day/child/prayer) count once */
 function process(rows) {
   const seen = {};
-  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place, kind]) => {
+  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place, kind, mname]) => {
     const loc = lat !== "" && lat != null && !isNaN(+lat) && lat !== 0 ? { lat: +lat, lng: +lng, name: place || "" } : TORONTO;   // older rows: Toronto
     const c = classify(at, prayer, loc), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
-    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", mosque: kind === "Mosque", day, month: day.slice(0, 7), ...c };
+    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", mosque: kind === "Mosque", mosqueName: kind === "Mosque" ? String(mname || "") : "", day, month: day.slice(0, 7), ...c };
     if (e.jumuah) e.points *= RULES.jumuah; else if (e.mosque) e.points *= RULES.mosque;   // not both: Jumu'ah is already at the mosque
     if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
     return e;
   });
 }
 
-const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place, e.jumuah ? "Jumuah" : e.mosque ? "Mosque" : ""];
+const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place, e.jumuah ? "Jumuah" : e.mosque ? "Mosque" : "", e.mosqueName || ""];
 // Friday: Dhuhr can be prayed as Jumu'ah (same time window, same points)
 const isFriday = p => new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() === 5;
 const jumuahDay = (prayer, p) => prayer === "Dhuhr" && isFriday(p);
 const pname = e => e.jumuah ? "Jumu'ah" : e.prayer;
-const where = e => e.mosque ? " at the mosque" : "";
+const where = e => e.mosque ? " at " + (e.mosqueName || "the mosque") : "";
+// mosque names used before (suggestions when typing)
+function mosqueNames() {
+  const set = new Set(store.get("mosques") || []); entries.forEach(e => { if (e.mosqueName) set.add(e.mosqueName); });
+  return [...set].filter(Boolean).slice(0, 20);
+}
+function rememberMosque(n) { n = String(n || "").trim(); if (!n) return; const l = [n, ...(store.get("mosques") || []).filter(x => x !== n)].slice(0, 20); store.set("mosques", l); }
+function mosqueInput(id, value) {               // name field + buttons with the names used before (tap to fill)
+  const inp = el("input", "mosquein"); inp.id = id; inp.maxLength = 60; inp.placeholder = "Mosque name (optional)"; inp.value = value || ""; inp.setAttribute("aria-label", "Mosque name (optional)");
+  inp.autocomplete = "off";
+  const w = el("span", "mosquewrap"); w.append(inp);
+  const names = mosqueNames().slice(0, 4);
+  if (names.length) { const chips = el("span", "mqchips"); names.forEach(n => { const c = el("button", "mqchip", n); c.type = "button"; c.onclick = () => { inp.value = n; }; chips.append(c); }); w.append(chips); }
+  w.input = inp; return w;
+}
+window.mosqueInput = mosqueInput; window.rememberMosque = rememberMosque;
 const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 
 /* ===== API ===== */
@@ -362,11 +379,12 @@ async function load() {
 }
 
 /* ===== Actions ===== */
-async function confirmPrayer(prayer, btn, kind) {
+async function confirmPrayer(prayer, btn, kind, mname) {
   if (busy) return; busy = true; btn.disabled = true; say("Saving…");
+  mname = kind === "Mosque" ? String(mname || "").trim() : ""; rememberMosque(mname);
   try {
-    const j = await api({ ...auth(), action: "add", prayer, kind: kind || "", ...here() });
-    entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind || ""]]);
+    const j = await api({ ...auth(), action: "add", prayer, kind: kind || "", mosqueName: mname, ...here() });
+    entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind || "", mname]]);
     const e = entries.find(x => x.at === j.at), nm = pname(e) + where(e);
     say(e.key === "ontime" ? "Well done! " + nm + " on time: +" + pts(e.points) + (e.points === 1 ? " point" : " points") :
         e.key === "dup" ? "Already saved earlier today." :
@@ -409,9 +427,13 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel, presetKind) {
     (jumuahDay(prayer, dayP) ? [["Jumuah", "🕌 Jumu'ah"], ["", "Dhuhr"], ["Mosque", "🕌 Dhuhr at the mosque (×2)"]] : [["", "Prayed"], ["Mosque", "🕌 At the mosque (×2)"]])
       .forEach(([v, t]) => { const o = el("option", null, t); o.value = v; kindSel.append(o); });
   }
+  const mq = mosqueInput("mq-" + prayer + "-" + dayKey(dayP));
+  const syncMq = () => { mq.hidden = (kindSel ? kindSel.value : (presetKind || "")) !== "Mosque"; };
+  if (kindSel) kindSel.onchange = syncMq; syncMq();
   cancel.onclick = () => (onCancel || render)();
   ok.onclick = async () => {
     const kind = kindSel ? kindSel.value : (presetKind || "");
+    const mname = kind === "Mosque" ? mq.input.value.trim() : ""; rememberMosque(mname);
     const [hh, mi] = inp.value.split(":").map(Number); if (isNaN(hh)) return;
     const at = zonedMs(dayP[0], dayP[1], dayP[2], hh, mi);
     if (Date.now() - w.start > MARK_LIMIT_MS) { msg("More than 24 hours have passed since " + prayer + " time. It can no longer be marked.", true); return; }
@@ -419,20 +441,28 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel, presetKind) {
     if (at < w.start) { msg(prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true); return; }
     ok.disabled = true; msg("Saving…");
     try {
-      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start, kind, ...here() });
-      entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind]]);
+      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start, kind, mosqueName: mname, ...here() });
+      entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind, mname]]);
       const e = entries.find(x => x.at === j.at && x.child === kid);
       (onDone || render)();
       msg("Saved: " + kid + " – " + pname(e) + where(e) + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
     } catch (err) { ok.disabled = false; msg(err.message, true); }
   };
   const lab = el("label", "note", kid + " prayed " + (presetKind === "Jumuah" ? "Jumu'ah" : prayer) + (presetKind === "Mosque" ? " at the mosque" : "") + " at"); lab.htmlFor = inp.id;
-  form.append(lab); if (kindSel) form.append(kindSel); form.append(inp, ok, cancel);
+  form.append(lab); if (kindSel) form.append(kindSel); form.append(mq, inp, ok, cancel);
   setTimeout(() => inp.focus(), 0);
   return form;
 }
 window.markForm = markForm;
 window.canMark = w => Date.now() - w.start <= MARK_LIMIT_MS;
+// child: tapped "At the mosque" – optional mosque name, then save
+function askMosque(right, p, btn) {
+  right.hidden = true;
+  const f = el("div", "markform"), mi = mosqueInput("mq-" + p), ok = el("button", "primary", "Save 🕌"), no = el("button", "ghost", "Cancel");
+  const lab = el("label", "note", "Which mosque? (you can leave it empty)"); lab.htmlFor = mi.input.id;
+  ok.onclick = () => confirmPrayer(p, ok, "Mosque", mi.input.value); no.onclick = () => render();
+  f.append(lab, mi, ok, no); right.parentElement.append(f); setTimeout(() => mi.input.focus(), 0);
+}
 function openMark(prayer, kid, w, right, kind) {
   right.hidden = true; right.parentElement.append(markForm(prayer, kid, parts(Date.now()), w, null, null, null, kind));
 }
@@ -576,7 +606,7 @@ function render() {
     if (window.openLearn) { const lb = el("button", "learnwide"); lb.innerHTML = window.LEARN_BOOK_ICON + "<span>How to pray " + p + "</span>"; lb.onclick = () => window.openLearn(p); extra.append(lb); }
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
-      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + (done.mosque ? "🕌 " : "") + (fri ? pname(done) + " " : "") + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
+      right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + (done.mosque ? "🕌 " + (done.mosqueName ? done.mosqueName + " · " : "") : "") + (fri ? pname(done) + " " : "") + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
       if (canRemove || (now - done.at < UNDO_MINUTES * 60000 && (!admin || done.by === session.user))) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
     } else if (now < w.start) {
       right.append(el("span", "chip", "Opens " + fmtT(w.start)));
@@ -591,8 +621,11 @@ function render() {
       if (fri) {                                    // Friday: which one did you pray?
         friButtons(right, late, (kind, b) => confirmPrayer(p, b, kind));
       } else {
-        prayButtons(right, late, p, (kind, b) => confirmPrayer(p, b, kind));
+        prayButtons(right, late, p, (kind, b) => kind === "Mosque" ? askMosque(right, p, b) : confirmPrayer(p, b, kind));
       }
+    }
+    if (admin && done && !done.jumuah && window.openNote && !otherParent) {            // change "at the mosque" / mosque name later
+      const eb = el("button", "notebtn", done.mosque ? "🕌 Edit mosque" : "🕌 Was at the mosque?"); eb.onclick = () => window.openNote(kid, tp, p); extra.append(eb);
     }
     if (admin && window.openNote && isKidId(kid)) {
       const n = window.noteFor && window.noteFor(kid, today, p);
@@ -631,7 +664,7 @@ function render() {
   if (!recent.length) hl.append(el("p", "note", "Nothing yet. Each Prayed tap shows up here."));
   recent.forEach(e => {
     const it = el("div", "hitem"), w = el("div", "what");
-    w.append(el("div", null, (admin ? e.child + " · " : "") + pname(e) + (e.mosque ? " 🕌" : "") + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at) + (e.by && e.by !== e.child ? " · marked by " + e.by : "")));
+    w.append(el("div", null, (admin ? e.child + " · " : "") + pname(e) + (e.mosque ? " 🕌" + (e.mosqueName ? " " + e.mosqueName : "") : "") + " · " + e.label), el("small", null, fmtD(e.at) + ", " + fmtT(e.at) + (e.by && e.by !== e.child ? " · marked by " + e.by : "")));
     const r = el("div", "right"); r.append(el("span", "chip " + (e.key === "ontime" ? "ok" : e.points ? "late" : ""), "+" + pts(e.points)));
     if (canRemove) { const u = el("button", "ghost", "Remove"); u.onclick = () => undo(e, u); r.append(u); }
     it.append(w, r); hl.append(it);
@@ -670,7 +703,7 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
-<script src="parents.js?v=20261115a"></script>
+<script src="parents.js?v=20261116a"></script>
 <script src="family.js?v=20261115c"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>
