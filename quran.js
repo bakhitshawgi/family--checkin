@@ -244,7 +244,8 @@
     S.forEach(x => {
       const r = recOf(child, x[0]), cls = r ? r.status : "none";
       const t = el("button", "qtile q-" + cls);
-      t.append(el("span", "qar", x[2]), el("span", "qen", x[1]), el("span", "qmeta", x[3] + " verses · " + ptsFor(x[3]) + " pts"),
+      const hasRec = list().some(q => q.child === child && q.surah === x[0] && q.audio);
+      t.append(el("span", "qar", x[2]), el("span", "qen", x[1] + (hasRec ? " 🎧" : "")), el("span", "qmeta", x[3] + " verses · " + ptsFor(x[3]) + " pts"),
         el("span", "qst", { approved: "✨ Memorized", known: "✓ Knew it", pending: "⏳ Waiting", review: "🔁 Practice more", none: "" }[cls]));
       t.onclick = () => openSurah(child, x[0]);
       grid.append(t);
@@ -266,11 +267,15 @@
     c.append(note, b);
     return c;
   }
+  const audioCache = {};
   function playRec(q, st) {
     const pb = el("button", "ghost", "▶ Play the recitation");
     pb.onclick = async () => {
       pb.disabled = true; pb.textContent = "Loading…";
-      try { const j = await api({ ...auth(), action: "audio", id: q.audio }); const a = document.createElement("audio"); a.controls = true; a.src = j.audio; a.className = "aud"; pb.replaceWith(a); a.play().catch(() => {}); }
+      try {
+        const src = audioCache[q.audio] || (audioCache[q.audio] = (await api({ ...auth(), action: "audio", id: q.audio })).audio);   // loaded once per visit
+        const a = document.createElement("audio"); a.controls = true; a.src = src; a.className = "aud"; pb.replaceWith(a); a.play().catch(() => {});
+      }
       catch (e) { pb.disabled = false; pb.textContent = "▶ Play the recitation"; setMsg(st, e.message, true); }
     };
     return pb;
@@ -303,6 +308,16 @@
       const txt = { approved: "✨ Memorized" + (r.points ? " · +" + r.points + " points" : ""), known: "✓ Already knew it (no points)", pending: "⏳ Waiting for Mom or Dad", review: "🔁 Practice a bit more, then try again" }[r.status];
       card.append(el("p", "qstate q-" + r.status, txt + (r.decidedBy ? " · " + r.decidedBy + (r.decided ? ", " + fmtD(r.decided) : "") : "")));
       if (r.note) card.append(el("p", "reply", "💬 " + r.note));
+    }
+    const recs = list().filter(q => q.child === child && q.surah === n && q.audio).sort((a, b) => b.created - a.created);
+    if (recs.length) {
+      const box = el("div", "qrecs"); box.append(el("b", "qrecsh", "🎧 " + (recs.length === 1 ? "Recording" : "Recordings (" + recs.length + ")")));
+      recs.forEach(q => {
+        const line = el("div", "qrec");
+        line.append(el("span", "note", fmtD(q.created) + ", " + fmtT(q.created) + " · " + { approved: "✨ approved", known: "✓ knew it", pending: "⏳ waiting", review: "🔁 practice more" }[q.status]), playRec(q, st));
+        box.append(line);
+      });
+      card.append(box);
     }
     const can = !r || r.status === "review";
     if (!parent && can) {                             // child: record, or "I recited to Dad / Mom"
@@ -340,7 +355,6 @@
       const b = el("div", "right left");
       if (!r || r.status === "review" || r.status === "pending") {
         if (r && r.status === "pending") {
-          if (r.audio) card.append(playRec(r, st));
           const ok = el("button", "primary", "✅ Memorized (+" + ptsFor(x[3]) + ")"), more = el("button", "ghost", "🔁 Practice more");
           ok.onclick = () => act({ action: "quran_decide", id: r.id, status: "approved" }, () => Object.assign(r, { status: "approved", decidedBy: session.user, decided: Date.now() }), ok, st);
           more.onclick = () => act({ action: "quran_decide", id: r.id, status: "review" }, () => Object.assign(r, { status: "review", points: 0, decidedBy: session.user, decided: Date.now() }), more, st);
@@ -404,6 +418,8 @@
   .qstate{margin:0;font-weight:600}.qstate.q-approved{color:#8a5a12}.qstate.q-known{color:var(--done)}.qstate.q-pending{color:var(--accent)}.qstate.q-review{color:var(--late)}
   .qsheet{max-height:88vh;overflow:auto}
   .fcard.qpend{border:1px dashed var(--accent)}
+  .qrecs{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:12px;background:var(--wait-bg)}
+  .qrecsh{font-size:14px}.qrec{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
   .memob{min-height:40px}
   .upwrap{display:inline-flex}.upbtn{display:inline-flex;flex-direction:row;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:10px 14px;font-size:15px;font-weight:600;cursor:pointer}
   .memo{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;background:var(--bg);border:1px solid var(--line)}
