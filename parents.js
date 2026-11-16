@@ -201,30 +201,54 @@
         card.append(b, st);
       } else card.append(el("div", "note", "More than 24 hours have passed since this prayer's time, so it can't be marked anymore."));
     }
-    if (s.e && !s.e.jumuah && (isKid || child === session.user)) card.append(mosqueEditor(s.e));
+    if (s.e && (isKid || child === session.user)) card.append(mosqueEditor(s.e));
     if (isKid) card.append(noteEditor(child, s.day, prayer, n));
     return card;
   }
 
-  /* ---------- prayed at the mosque? (change it on an earlier prayer) ---------- */
+  /* ---------- edit a recorded prayer (Mom & Dad, any day): time, where, mosque; Dad can delete ---------- */
   function mosqueEditor(e) {
     const wrap = el("div", "mosqed"), st = el("div", "status");
     const msg = (m, err) => { st.className = "status" + (err ? " err" : ""); st.textContent = m; };
-    const chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = !!e.mosque; chk.id = "mqc-" + e.at;
-    const lab = el("label", "mqlab"); lab.htmlFor = chk.id; lab.append(chk, document.createTextNode(" 🕌 Prayed at the mosque (×2 points)"));
-    const mi = window.mosqueInput("mqe-" + e.at, e.mosqueName, e.mosqueAddr); mi.hidden = !chk.checked; chk.onchange = () => { mi.hidden = !chk.checked; };
-    const save = el("button", "primary", "Save");
+    const p = parts(e.at), fri = e.prayer === "Dhuhr" && new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() === 5;
+    const w = windowFor(e.prayer, p);
+    wrap.append(el("b", "edhead", "✎ Edit this prayer"));
+    const tl = el("label", "mqrow", "Time"), tin = el("input", "timein"); tin.type = "time"; tin.id = "et-" + e.at;
+    tin.value = new Intl.DateTimeFormat("en-GB", { timeZone: PT.TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(e.at)); tl.htmlFor = tin.id; tl.append(tin);
+    const wl = el("label", "mqrow", "Where"), sel = document.createElement("select"); sel.id = "ew-" + e.at; wl.htmlFor = sel.id;
+    (fri ? [["Jumuah", "🕌 Jumu'ah (×2)"], ["", "Dhuhr"], ["Mosque", "🕌 Dhuhr at the mosque (×2)"]] : [["", "Prayed"], ["Mosque", "🕌 At the mosque (×2)"]])
+      .forEach(([v, t]) => { const o = el("option", null, t); o.value = v; sel.append(o); });
+    sel.value = e.jumuah ? "Jumuah" : e.mosque ? "Mosque" : ""; wl.append(sel);
+    const mi = window.mosqueInput("mqe-" + e.at, e.mosqueName, e.mosqueAddr);
+    const sync = () => { mi.hidden = sel.value !== "Mosque"; }; sel.onchange = sync; sync();
+    const save = el("button", "primary", "Save changes");
     save.onclick = async () => {
-      const kind = chk.checked ? "Mosque" : "", mname = chk.checked ? mi.input.value.trim() : "", maddr = mname ? mi.addr() : "";
+      const [hh, mm] = tin.value.split(":").map(Number); if (isNaN(hh)) return;
+      const newAt = window.zonedAt(p, hh, mm), kind = sel.value;
+      if (newAt > Date.now() + 60e3) return msg("That time is in the future.", true);
+      if (newAt < w.start) return msg(e.prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true);
+      const mname = kind === "Mosque" ? mi.input.value.trim() : "", maddr = mname ? mi.addr() : "";
       save.disabled = true; msg("Saving…");
       try {
-        await api({ ...auth(), action: "edit_kind", child: e.child, at: e.at, kind, mosqueName: mname, mosqueAddr: maddr });
+        await api({ ...auth(), action: "edit_kind", child: e.child, at: e.at, newAt, kind, mosqueName: mname, mosqueAddr: maddr });
         window.rememberMosque(mname, maddr);
-        entries = process(entries.map(x => x.at === e.at && x.child === e.child ? [x.at, x.child, x.prayer, x.by, x.lat, x.lng, x.place, kind, mname, maddr] : rowOf(x)));
-        msg("Saved."); setTimeout(() => { document.querySelectorAll(".nov").forEach(x => x.remove()); render(); }, 500);
+        entries = process(entries.map(x => x.at === e.at && x.child === e.child ? [newAt, x.child, x.prayer, x.by, x.lat, x.lng, x.place, kind, mname, maddr] : rowOf(x)));
+        msg("Saved."); setTimeout(() => { document.querySelectorAll(".nov").forEach(x => x.remove()); if (trackSel) trackSel = { ...trackSel }; render(); }, 500);
       } catch (err) { save.disabled = false; msg(err.code === "bad" || err.code === "net" ? err.message : "This needs the updated Google script.", true); }
     };
-    wrap.append(lab, mi, save, st); return wrap;
+    const btns = el("div", "right left"); btns.append(save);
+    if (session.admin) {                              // Dad: delete a wrong entry
+      const del = el("button", "ghost", "Delete this prayer");
+      del.onclick = async () => {
+        if (!confirm("Delete " + e.child + "'s " + e.prayer + " (" + fmtD(e.at) + ", " + fmtT(e.at) + ")?")) return;
+        del.disabled = true; msg("Deleting…");
+        try { await api({ ...auth(), action: "remove", child: e.child, at: e.at }); entries = process(entries.filter(x => !(x.at === e.at && x.child === e.child)).map(rowOf));
+          msg("Deleted."); setTimeout(() => { document.querySelectorAll(".nov").forEach(x => x.remove()); render(); }, 400); }
+        catch (err) { del.disabled = false; msg(err.message, true); }
+      };
+      btns.append(del);
+    }
+    wrap.append(tl, wl, mi, btns, st); return wrap;
   }
 
   /* ---------- Notes (Mom & Dad) ---------- */
@@ -324,6 +348,8 @@
   .noteed{display:flex;flex-direction:column;gap:6px;margin-top:4px}
   .mqmap{font-size:13px;color:var(--accent);text-decoration:none}
   .mosqed{display:flex;flex-direction:column;gap:6px;margin-top:6px;padding:10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+  .edhead{font-size:14px}.mqrow{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:8px;font-size:14px;color:var(--fg);font-weight:600}
+  .mqrow input,.mqrow select{width:auto;max-width:65%;padding:7px 8px}
   .mqlab{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--fg);font-weight:600}.mqlab input{width:auto}
   .noteed textarea{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;resize:vertical}
   .notebtn{background:transparent;border:1px solid var(--line);color:var(--accent);padding:6px 10px;font-size:13px}

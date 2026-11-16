@@ -207,7 +207,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
 
   <section class="panel" id="tracker" hidden>
     <h2>Prayer tracker</h2>
-    <p class="note">Tap any box to see the details and write a note.</p>
+    <p class="note">Tap any box to see the details, edit it or write a note.</p>
     <div id="trackerbody" style="display:flex;flex-direction:column;gap:10px"></div>
   </section>
 
@@ -389,6 +389,7 @@ function mosqueInput(id, value, addrValue) {     // name field: suggestions with
   w.input = inp; w.addr = () => (inp.value.trim() && inp.value.trim() === picked ? addr : ""); return w;
 }
 window.mapLink = mapLink;
+window.zonedAt = (p, hh, mi) => zonedMs(p[0], p[1], p[2], hh, mi);
 window.mosqueInput = mosqueInput; window.rememberMosque = rememberMosque;
 const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 
@@ -670,8 +671,8 @@ function render() {
         prayButtons(right, late, p, (kind, b) => kind === "Mosque" ? askMosque(right, p, b) : confirmPrayer(p, b, kind));
       }
     }
-    if (admin && done && !done.jumuah && window.openNote && !otherParent) {            // change "at the mosque" / mosque name later
-      const eb = el("button", "notebtn", done.mosque ? "🕌 Edit mosque" : "🕌 Was at the mosque?"); eb.onclick = () => window.openNote(kid, tp, p); extra.append(eb);
+    if (admin && done && window.openNote && !otherParent) {            // edit time / where / mosque later
+      const eb = el("button", "notebtn", "✎ Edit"); eb.onclick = () => window.openNote(kid, tp, p); extra.append(eb);
     }
     if (admin && window.openNote && isKidId(kid)) {
       const n = window.noteFor && window.noteFor(kid, today, p);
@@ -749,7 +750,7 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
-<script src="parents.js?v=20261116b"></script>
+<script src="parents.js?v=20261116c"></script>
 <script src="family.js?v=20261115c"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>

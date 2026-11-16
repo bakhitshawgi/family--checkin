@@ -254,17 +254,24 @@ function handle_(p) {
   }
 
   /* ---------- change "prayed at the mosque" on an earlier prayer (Mom and Dad) ---------- */
-  if (action === 'edit_kind') {
+  if (action === 'edit_kind') {                      // Mom and Dad: change a recorded prayer – time (same day), where, mosque
     if (!isParent) return bad('Only Mom and Dad can change this.');
-    const at = Number(p.at), kind = p.kind === 'Mosque' ? 'Mosque' : '';
+    if (KIDS.indexOf(p.child) < 0 && p.child !== user) return bad('You can only change your own prayers or the children\'s.');
+    const at = Number(p.at), newAt = p.newAt ? Number(p.newAt) : at;
     return locked_(() => {
       const lg = logSheet_(), n = lg.getLastRow(); if (n < 2) return bad('Prayer not found.');
       const vals = lg.getRange(2, 1, n - 1, 8).getValues();
       for (let i = vals.length - 1; i >= 0; i--) {
         if (vals[i][0] instanceof Date && vals[i][0].getTime() === at && vals[i][1] === p.child) {
-          if (vals[i][7] === 'Jumuah') return bad("Jumu'ah is already at the mosque.");
-          lg.getRange(i + 2, 8, 1, 3).setValues([[kind, kind ? String(p.mosqueName || '').trim().slice(0, 60) : '', kind ? String(p.mosqueAddr || '').trim().slice(0, 150) : '']]);
-          return { ok: true };
+          const day = d => Utilities.formatDate(new Date(d), TZ, 'yyyy-MM-dd');
+          if (!(newAt <= Date.now() + 60e3)) return bad('That time is in the future.');
+          if (day(newAt) !== day(at)) return bad('The time has to stay on the same day.');
+          const friDhuhr = vals[i][2] === 'Dhuhr' && Utilities.formatDate(new Date(newAt), TZ, 'EEE') === 'Fri';
+          const kind = p.kind === 'Jumuah' && friDhuhr ? 'Jumuah' : p.kind === 'Mosque' ? 'Mosque' : '';
+          const mosque = kind === 'Mosque';
+          lg.getRange(i + 2, 1).setValue(new Date(newAt));
+          lg.getRange(i + 2, 8, 1, 3).setValues([[kind, mosque ? String(p.mosqueName || '').trim().slice(0, 60) : '', mosque ? String(p.mosqueAddr || '').trim().slice(0, 150) : '']]);
+          return { ok: true, at: newAt };
         }
       }
       return bad('Prayer not found.');
