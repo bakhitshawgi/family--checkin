@@ -5,7 +5,7 @@
  * Deploy → Manage deployments → ✏️ → Version: New version → Deploy (keeps the same URL).
  *
  * Tabs it uses (created automatically):
- *   Log      – every prayer:   Timestamp | Child | Prayer | Marked by | Lat | Lng | Place | Type | Mosque name  (no place = Toronto; Type "Jumuah" = Friday Dhuhr prayed as Jumu'ah, "Mosque" = prayed at the mosque)
+ *   Log      – every prayer:   Timestamp | Child | Prayer | Marked by | Lat | Lng | Place | Type | Mosque name | Mosque address  (no place = Toronto; Type "Jumuah" = Friday Dhuhr prayed as Jumu'ah, "Mosque" = prayed at the mosque)
  *   Notes    – parents' notes: Date | Child | Prayer | Note | By | Updated
  *   Tasks    – ID | Created | By | Child | Type | Title | Due | Status | Rating | Updated | Child note
  *   Requests – ID | Created | Child | Text | Audio ID | Status | Decided by | Decided | Reply
@@ -263,7 +263,7 @@ function handle_(p) {
       for (let i = vals.length - 1; i >= 0; i--) {
         if (vals[i][0] instanceof Date && vals[i][0].getTime() === at && vals[i][1] === p.child) {
           if (vals[i][7] === 'Jumuah') return bad("Jumu'ah is already at the mosque.");
-          lg.getRange(i + 2, 8, 1, 2).setValues([[kind, kind ? String(p.mosqueName || '').trim().slice(0, 60) : '']]);
+          lg.getRange(i + 2, 8, 1, 3).setValues([[kind, kind ? String(p.mosqueName || '').trim().slice(0, 60) : '', kind ? String(p.mosqueAddr || '').trim().slice(0, 150) : '']]);
           return { ok: true };
         }
       }
@@ -290,7 +290,7 @@ function handle_(p) {
         const lat = Number(p.lat), lng = Number(p.lng);   // place the prayer times were counted for (nearest city, never exact GPS)
         const okLoc = isFinite(lat) && isFinite(lng) && lat !== 0 && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
         const jumuah = p.kind === 'Jumuah' && p.prayer === 'Dhuhr' && Utilities.formatDate(new Date(at), TZ, 'EEE') === 'Fri';   // Friday only
-        sh.appendRow([new Date(at), child, p.prayer, user, okLoc ? Math.round(lat * 100) / 100 : '', okLoc ? Math.round(lng * 100) / 100 : '', okLoc ? String(p.place || '').slice(0, 60) : '', jumuah ? 'Jumuah' : p.kind === 'Mosque' ? 'Mosque' : '', !jumuah && p.kind === 'Mosque' ? String(p.mosqueName || '').trim().slice(0, 60) : '']);
+        sh.appendRow([new Date(at), child, p.prayer, user, okLoc ? Math.round(lat * 100) / 100 : '', okLoc ? Math.round(lng * 100) / 100 : '', okLoc ? String(p.place || '').slice(0, 60) : '', jumuah ? 'Jumuah' : p.kind === 'Mosque' ? 'Mosque' : '', !jumuah && p.kind === 'Mosque' ? String(p.mosqueName || '').trim().slice(0, 60) : '', !jumuah && p.kind === 'Mosque' ? String(p.mosqueAddr || '').trim().slice(0, 150) : '']);
         return { ok: true, at: at };
       }
       const last = sh.getLastRow();
@@ -316,7 +316,7 @@ function handle_(p) {
   /* ---------- list: everything the page shows ---------- */
   const since = Number(p.since || 0);
   const last = sh.getLastRow();
-  const logVals = last < 2 ? [] : sh.getRange(2, 1, last - 1, 9).getValues();
+  const logVals = last < 2 ? [] : sh.getRange(2, 1, last - 1, 10).getValues();
   // Brother / sister card for a child: only how many of today's prayers the other child has prayed – no times, no details.
   let siblings = [];
   if (!isParent) {
@@ -329,7 +329,7 @@ function handle_(p) {
   }
   const rows = logVals
     .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (isParent || r[1] === user))
-    .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1]), r[4] === '' ? '' : Number(r[4]), r[5] === '' ? '' : Number(r[5]), String(r[6] || ''), String(r[7] || ''), String(r[8] || '')]);
+    .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1]), r[4] === '' ? '' : Number(r[4]), r[5] === '' ? '' : Number(r[5]), String(r[6] || ''), String(r[7] || ''), String(r[8] || ''), String(r[9] || '')]);
   let notes = [];
   if (isParent) {                                    // notes are only sent to Mom and Dad
     const sinceDay = Utilities.formatDate(new Date(since), TZ, 'yyyy-MM-dd');
@@ -372,11 +372,12 @@ function sheet_(name, head, textCols) {
   return sh;
 }
 function logSheet_() {
-  const sh = sheet_('Log', ['Timestamp', 'Child', 'Prayer', 'Marked by', 'Lat', 'Lng', 'Place', 'Type', 'Mosque name']);
-  if (sh.getMaxColumns() < 9) sh.insertColumnsAfter(sh.getMaxColumns(), 9 - sh.getMaxColumns());
+  const sh = sheet_('Log', ['Timestamp', 'Child', 'Prayer', 'Marked by', 'Lat', 'Lng', 'Place', 'Type', 'Mosque name', 'Mosque address']);
+  if (sh.getMaxColumns() < 10) sh.insertColumnsAfter(sh.getMaxColumns(), 10 - sh.getMaxColumns());
   if (sh.getRange(1, 5).getValue() === '') sh.getRange(1, 5, 1, 3).setValues([['Lat', 'Lng', 'Place']]);
   if (sh.getRange(1, 8).getValue() === '') sh.getRange(1, 8).setValue('Type');
-  if (sh.getRange(1, 9).getValue() === '') sh.getRange(1, 9).setValue('Mosque name');   // add the new headers once; old rows stay as they are (= Toronto)
+  if (sh.getRange(1, 9).getValue() === '') sh.getRange(1, 9).setValue('Mosque name');
+  if (sh.getRange(1, 10).getValue() === '') sh.getRange(1, 10).setValue('Mosque address');   // add the new headers once; old rows stay as they are (= Toronto)
   return sh;
 }
 function notesSheet_() { return sheet_('Notes', ['Date', 'Child', 'Prayer', 'Note', 'By', 'Updated'], [1]); }

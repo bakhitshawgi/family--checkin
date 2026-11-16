@@ -96,7 +96,11 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .markb{min-width:0}
 .kindsel{width:auto;padding:8px}
 .mosquewrap{flex-basis:100%;display:flex;flex-direction:column;gap:6px}.mosquein{width:100%;padding:8px}
-.mqchips{display:flex;flex-wrap:wrap;gap:6px}.mqchip{background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600}
+.mqchips{display:flex;flex-wrap:wrap;gap:6px}
+.mqaddr a{font-size:13px;color:var(--accent);text-decoration:none}.mqaddr:empty{display:none}
+.mqsugg{display:flex;flex-direction:column;gap:4px}.mqsugg:empty{display:none}
+.mqopt{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:1px;background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:8px 10px;font-weight:400}
+.mqopt b{font-size:14px}.mqopt span{font-size:12px;color:var(--muted)}.mqchip{background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600}
 .right.wide{grid-column:1/-1;justify-content:flex-start}
 .right.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
 .fribtn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border-radius:12px;background:var(--surface);color:var(--fg);border:2px solid var(--accent);font-weight:700;font-size:16px}
@@ -313,36 +317,78 @@ function classify(at, prayer, loc) {
 /* rows: [ms, child, prayer] -> entries with status; duplicates (same day/child/prayer) count once */
 function process(rows) {
   const seen = {};
-  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place, kind, mname]) => {
+  return rows.slice().sort((a, b) => a[0] - b[0]).map(([at, child, prayer, by, lat, lng, place, kind, mname, maddr]) => {
     const loc = lat !== "" && lat != null && !isNaN(+lat) && lat !== 0 ? { lat: +lat, lng: +lng, name: place || "" } : TORONTO;   // older rows: Toronto
     const c = classify(at, prayer, loc), day = dayKey(parts(at)), key = day + "|" + child + "|" + prayer;
-    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", mosque: kind === "Mosque", mosqueName: kind === "Mosque" ? String(mname || "") : "", day, month: day.slice(0, 7), ...c };
+    let e = { at, child, prayer, by: by || child, lat: loc.lat, lng: loc.lng, place: loc.name, jumuah: kind === "Jumuah" && prayer === "Dhuhr", mosque: kind === "Mosque", mosqueName: kind === "Mosque" ? String(mname || "") : "", mosqueAddr: kind === "Mosque" ? String(maddr || "") : "", day, month: day.slice(0, 7), ...c };
     if (e.jumuah) e.points *= RULES.jumuah; else if (e.mosque) e.points *= RULES.mosque;   // not both: Jumu'ah is already at the mosque
     if (c.key !== "before") { if (seen[key]) e = { ...e, key: "dup", label: "Duplicate – not counted", points: 0 }; else seen[key] = true; }
     return e;
   });
 }
 
-const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place, e.jumuah ? "Jumuah" : e.mosque ? "Mosque" : "", e.mosqueName || ""];
+const rowOf = e => [e.at, e.child, e.prayer, e.by, e.lat, e.lng, e.place, e.jumuah ? "Jumuah" : e.mosque ? "Mosque" : "", e.mosqueName || "", e.mosqueAddr || ""];
 // Friday: Dhuhr can be prayed as Jumu'ah (same time window, same points)
 const isFriday = p => new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() === 5;
 const jumuahDay = (prayer, p) => prayer === "Dhuhr" && isFriday(p);
 const pname = e => e.jumuah ? "Jumu'ah" : e.prayer;
 const where = e => e.mosque ? " at " + (e.mosqueName || "the mosque") : "";
 // mosque names used before (suggestions when typing)
-function mosqueNames() {
-  const set = new Set(store.get("mosques") || []); entries.forEach(e => { if (e.mosqueName) set.add(e.mosqueName); });
-  return [...set].filter(Boolean).slice(0, 20);
+function savedMosques() {                       // [{name, addr}] used before on this device or in the log
+  const out = [], seen = new Set();
+  const add = m => { if (!m || !m.name || seen.has(m.name)) return; seen.add(m.name); out.push({ name: m.name, addr: m.addr || "" }); };
+  (store.get("mosques") || []).forEach(m => add(typeof m === "string" ? { name: m } : m));
+  entries.slice().reverse().forEach(e => e.mosqueName && add({ name: e.mosqueName, addr: e.mosqueAddr }));
+  return out.slice(0, 20);
 }
-function rememberMosque(n) { n = String(n || "").trim(); if (!n) return; const l = [n, ...(store.get("mosques") || []).filter(x => x !== n)].slice(0, 20); store.set("mosques", l); }
-function mosqueInput(id, value) {               // name field + buttons with the names used before (tap to fill)
-  const inp = el("input", "mosquein"); inp.id = id; inp.maxLength = 60; inp.placeholder = "Mosque name (optional)"; inp.value = value || ""; inp.setAttribute("aria-label", "Mosque name (optional)");
+const mosqueNames = () => savedMosques().map(m => m.name);
+function rememberMosque(n, addr) {
+  n = String(n || "").trim(); if (!n) return;
+  const l = [{ name: n, addr: addr || "" }, ...(store.get("mosques") || []).map(m => typeof m === "string" ? { name: m } : m).filter(m => m.name !== n)].slice(0, 20);
+  store.set("mosques", l);
+}
+const mapLink = (name, addr) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent([name, addr].filter(Boolean).join(", "));
+function addrOf(pr) {                                // Photon properties -> "123 Main St, Mississauga, ON"
+  const st = [pr.housenumber, pr.street].filter(Boolean).join(" ");
+  const prov = { Ontario: "ON", Quebec: "QC" }[pr.state] || pr.state;
+  return [st, pr.city || pr.district || pr.county, prov].filter(Boolean).join(", ");
+}
+async function searchMosques(q) {
+  const base = "https://photon.komoot.io/api/?limit=6&lang=en&lat=" + LOC.lat + "&lon=" + LOC.lng + "&q=" + encodeURIComponent(q);
+  const get = async u => { const r = await fetch(u); const j = await r.json(); return (j.features || []).map(f => ({ name: f.properties.name, addr: addrOf(f.properties), tag: f.properties.osm_value })).filter(x => x.name); };
+  let res = await get(base + "&osm_tag=amenity:place_of_worship");
+  if (res.length < 2) res = res.concat((await get(base)).filter(x => !res.some(y => y.name === x.name && y.addr === x.addr)));
+  return res.slice(0, 6);
+}
+function mosqueInput(id, value, addrValue) {     // name field: suggestions with addresses as you type + mosques used before
+  const inp = el("input", "mosquein"); inp.id = id; inp.maxLength = 60; inp.placeholder = "Mosque name (optional) – type to search"; inp.value = value || ""; inp.setAttribute("aria-label", "Mosque name (optional)");
   inp.autocomplete = "off";
-  const w = el("span", "mosquewrap"); w.append(inp);
-  const names = mosqueNames().slice(0, 4);
-  if (names.length) { const chips = el("span", "mqchips"); names.forEach(n => { const c = el("button", "mqchip", n); c.type = "button"; c.onclick = () => { inp.value = n; }; chips.append(c); }); w.append(chips); }
-  w.input = inp; return w;
+  const w = el("span", "mosquewrap"), addrLine = el("span", "mqaddr"), list = el("span", "mqsugg");
+  let addr = addrValue || "", picked = value || "";
+  const showAddr = () => { addrLine.replaceChildren(); if (!addr || inp.value.trim() !== picked) return;
+    const a = el("a", null, "📍 " + addr); a.href = mapLink(picked, addr); a.target = "_blank"; a.rel = "noopener"; addrLine.append(a); };
+  const pick = m => { inp.value = m.name; picked = m.name; addr = m.addr || ""; list.replaceChildren(); showAddr(); };
+  const row = m => { const b = el("button", "mqopt"); b.type = "button"; b.append(el("b", null, m.name), el("span", null, m.addr || "")); b.onclick = () => pick(m); return b; };
+  let timer = 0, seq = 0;
+  inp.oninput = () => {
+    if (inp.value.trim() !== picked) { addr = ""; showAddr(); }
+    clearTimeout(timer); const q = inp.value.trim();
+    if (q.length < 2) { list.replaceChildren(); return; }
+    timer = setTimeout(async () => {
+      const my = ++seq; list.replaceChildren(el("span", "note", "Searching…"));
+      try {
+        const res = await searchMosques(q); if (my !== seq) return;
+        list.replaceChildren(...(res.length ? res.map(row) : [el("span", "note", "No match – the name you typed will be saved as it is.")]));
+      } catch (e) { if (my === seq) list.replaceChildren(el("span", "note", "Search isn't available right now – the name you typed will be saved.")); }
+    }, 350);
+  };
+  w.append(inp, addrLine, list);
+  const saved = savedMosques().slice(0, 4);
+  if (saved.length) { const chips = el("span", "mqchips"); saved.forEach(m => { const c = el("button", "mqchip", m.name); c.type = "button"; c.title = m.addr || ""; c.onclick = () => pick(m); chips.append(c); }); w.append(chips); }
+  showAddr();
+  w.input = inp; w.addr = () => (inp.value.trim() && inp.value.trim() === picked ? addr : ""); return w;
 }
+window.mapLink = mapLink;
 window.mosqueInput = mosqueInput; window.rememberMosque = rememberMosque;
 const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 
@@ -379,12 +425,12 @@ async function load() {
 }
 
 /* ===== Actions ===== */
-async function confirmPrayer(prayer, btn, kind, mname) {
+async function confirmPrayer(prayer, btn, kind, mname, maddr) {
   if (busy) return; busy = true; btn.disabled = true; say("Saving…");
-  mname = kind === "Mosque" ? String(mname || "").trim() : ""; rememberMosque(mname);
+  mname = kind === "Mosque" ? String(mname || "").trim() : ""; maddr = mname ? String(maddr || "") : ""; rememberMosque(mname, maddr);
   try {
-    const j = await api({ ...auth(), action: "add", prayer, kind: kind || "", mosqueName: mname, ...here() });
-    entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind || "", mname]]);
+    const j = await api({ ...auth(), action: "add", prayer, kind: kind || "", mosqueName: mname, mosqueAddr: maddr, ...here() });
+    entries = process([...entries.map(rowOf), [j.at, session.user, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind || "", mname, maddr]]);
     const e = entries.find(x => x.at === j.at), nm = pname(e) + where(e);
     say(e.key === "ontime" ? "Well done! " + nm + " on time: +" + pts(e.points) + (e.points === 1 ? " point" : " points") :
         e.key === "dup" ? "Already saved earlier today." :
@@ -433,7 +479,7 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel, presetKind) {
   cancel.onclick = () => (onCancel || render)();
   ok.onclick = async () => {
     const kind = kindSel ? kindSel.value : (presetKind || "");
-    const mname = kind === "Mosque" ? mq.input.value.trim() : ""; rememberMosque(mname);
+    const mname = kind === "Mosque" ? mq.input.value.trim() : "", maddr = mname ? mq.addr() : ""; rememberMosque(mname, maddr);
     const [hh, mi] = inp.value.split(":").map(Number); if (isNaN(hh)) return;
     const at = zonedMs(dayP[0], dayP[1], dayP[2], hh, mi);
     if (Date.now() - w.start > MARK_LIMIT_MS) { msg("More than 24 hours have passed since " + prayer + " time. It can no longer be marked.", true); return; }
@@ -441,8 +487,8 @@ function markForm(prayer, kid, dayP, w, msg, onDone, onCancel, presetKind) {
     if (at < w.start) { msg(prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true); return; }
     ok.disabled = true; msg("Saving…");
     try {
-      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start, kind, mosqueName: mname, ...here() });
-      entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind, mname]]);
+      const j = await api({ ...auth(), action: "add", child: kid, prayer, at, start: w.start, kind, mosqueName: mname, mosqueAddr: maddr, ...here() });
+      entries = process([...entries.map(rowOf), [j.at, kid, prayer, session.user, LOC.lat, LOC.lng, LOC.name, kind, mname, maddr]]);
       const e = entries.find(x => x.at === j.at && x.child === kid);
       (onDone || render)();
       msg("Saved: " + kid + " – " + pname(e) + where(e) + " at " + fmtT(j.at) + " (" + e.label.toLowerCase() + ", +" + pts(e.points) + ").");
@@ -460,7 +506,7 @@ function askMosque(right, p, btn) {
   right.hidden = true;
   const f = el("div", "markform"), mi = mosqueInput("mq-" + p), ok = el("button", "primary", "Save 🕌"), no = el("button", "ghost", "Cancel");
   const lab = el("label", "note", "Which mosque? (you can leave it empty)"); lab.htmlFor = mi.input.id;
-  ok.onclick = () => confirmPrayer(p, ok, "Mosque", mi.input.value); no.onclick = () => render();
+  ok.onclick = () => confirmPrayer(p, ok, "Mosque", mi.input.value, mi.addr()); no.onclick = () => render();
   f.append(lab, mi, ok, no); right.parentElement.append(f); setTimeout(() => mi.input.focus(), 0);
 }
 function openMark(prayer, kid, w, right, kind) {
@@ -703,7 +749,7 @@ setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
 </script>
-<script src="parents.js?v=20261116a"></script>
+<script src="parents.js?v=20261116b"></script>
 <script src="family.js?v=20261115c"></script>
 <script src="activity.js?v=20261112b"></script>
 <script src="location.js?v=20261112a"></script>

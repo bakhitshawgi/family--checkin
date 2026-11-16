@@ -191,6 +191,7 @@
     const label = s.e ? (s.e.jumuah ? "🕌 Jumu'ah · " : s.e.mosque ? "🕌 At " + (s.e.mosqueName || "the mosque") + " · " : "") + s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
       : s.key === "missed" ? "Not prayed (missed)" : s.key === "before" ? "Before tracking started" : s.key === "open" ? "Time is open now (until " + fmtT(s.w.end) + ")" : "Not due yet (starts " + fmtT(s.w.start) + ")";
     card.append(el("b", null, child + " · " + prayer + " · " + dayLabel(d)), el("div", "note", "Adhan " + fmtT(s.w.start) + " · " + label));
+    if (s.e && s.e.mosque && s.e.mosqueAddr) { const a = el("a", "mqmap", "📍 " + s.e.mosqueAddr + " – open in Maps"); a.href = window.mapLink(s.e.mosqueName, s.e.mosqueAddr); a.target = "_blank"; a.rel = "noopener"; card.append(a); }
     const isKid = KIDS.some(k => k.id === child);
     if (!s.e && (s.key === "missed" || s.key === "open") && window.markForm && (isKid || child === session.user)) {   // forgot to mark? allowed for 24 hours only
       if (window.canMark(s.w)) {
@@ -211,15 +212,15 @@
     const msg = (m, err) => { st.className = "status" + (err ? " err" : ""); st.textContent = m; };
     const chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = !!e.mosque; chk.id = "mqc-" + e.at;
     const lab = el("label", "mqlab"); lab.htmlFor = chk.id; lab.append(chk, document.createTextNode(" 🕌 Prayed at the mosque (×2 points)"));
-    const mi = window.mosqueInput("mqe-" + e.at, e.mosqueName); mi.hidden = !chk.checked; chk.onchange = () => { mi.hidden = !chk.checked; };
+    const mi = window.mosqueInput("mqe-" + e.at, e.mosqueName, e.mosqueAddr); mi.hidden = !chk.checked; chk.onchange = () => { mi.hidden = !chk.checked; };
     const save = el("button", "primary", "Save");
     save.onclick = async () => {
-      const kind = chk.checked ? "Mosque" : "", mname = chk.checked ? mi.input.value.trim() : "";
+      const kind = chk.checked ? "Mosque" : "", mname = chk.checked ? mi.input.value.trim() : "", maddr = mname ? mi.addr() : "";
       save.disabled = true; msg("Saving…");
       try {
-        await api({ ...auth(), action: "edit_kind", child: e.child, at: e.at, kind, mosqueName: mname });
-        window.rememberMosque(mname);
-        entries = process(entries.map(x => x.at === e.at && x.child === e.child ? [x.at, x.child, x.prayer, x.by, x.lat, x.lng, x.place, kind, mname] : [x.at, x.child, x.prayer, x.by, x.lat, x.lng, x.place, x.jumuah ? "Jumuah" : x.mosque ? "Mosque" : "", x.mosqueName || ""]));
+        await api({ ...auth(), action: "edit_kind", child: e.child, at: e.at, kind, mosqueName: mname, mosqueAddr: maddr });
+        window.rememberMosque(mname, maddr);
+        entries = process(entries.map(x => x.at === e.at && x.child === e.child ? [x.at, x.child, x.prayer, x.by, x.lat, x.lng, x.place, kind, mname, maddr] : rowOf(x)));
         msg("Saved."); setTimeout(() => { document.querySelectorAll(".nov").forEach(x => x.remove()); render(); }, 500);
       } catch (err) { save.disabled = false; msg(err.code === "bad" || err.code === "net" ? err.message : "This needs the updated Google script.", true); }
     };
@@ -321,6 +322,7 @@
   @media (prefers-color-scheme:dark){.drow.lt{background:#3d3018}}
   .tdetail{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
   .noteed{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+  .mqmap{font-size:13px;color:var(--accent);text-decoration:none}
   .mosqed{display:flex;flex-direction:column;gap:6px;margin-top:6px;padding:10px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
   .mqlab{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--fg);font-weight:600}.mqlab input{width:auto}
   .noteed textarea{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;width:100%;resize:vertical}
