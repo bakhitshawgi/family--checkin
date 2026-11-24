@@ -21,7 +21,7 @@
   const isParent = () => !!(session && (session.viewAll || session.admin));
   const list = () => Array.isArray(window.quran) ? window.quran : [];
   const recOf = (child, n) => {                      // the record that decides how the tile looks
-    const rs = list().filter(q => q.child === child && q.surah === n);
+    const rs = list().filter(q => q.child === child && q.surah === n && q.status !== "archived");   // "archived" = undone, only its recording is kept
     return rs.find(q => q.status === "approved") || rs.find(q => q.status === "known") || rs.find(q => q.status === "pending") || rs.sort((a, b) => b.created - a.created)[0] || null;
   };
   const recToDataUrl = async blob => {
@@ -314,7 +314,7 @@
       const box = el("div", "qrecs"); box.append(el("b", "qrecsh", "🎧 " + (recs.length === 1 ? "Recording" : "Recordings (" + recs.length + ")")));
       recs.forEach(q => {
         const line = el("div", "qrec");
-        line.append(el("span", "note", fmtD(q.created) + ", " + fmtT(q.created) + " · " + { approved: "✨ approved", known: "✓ knew it", pending: "⏳ waiting", review: "🔁 practice more" }[q.status]), playRec(q, st));
+        line.append(el("span", "note", fmtD(q.created) + ", " + fmtT(q.created) + " · " + { approved: "✨ approved", known: "✓ knew it", pending: "⏳ waiting", review: "🔁 practice more", archived: "↩ undone" }[q.status]), playRec(q, st));
         box.append(line);
       });
       card.append(box);
@@ -366,9 +366,19 @@
           b.append(ok, kn);
         }
       }
-      if (r && (r.status === "approved" || r.status === "known")) {
-        const un = el("button", "ghost", "Undo");
-        un.onclick = () => { if (confirm("Remove " + x[1] + " from " + child + "'s list?")) act({ action: "quran_delete", id: r.id }, () => window.quran = list().filter(q => q.id !== r.id), un, st); };
+      if (r) {                                       // undo whatever is recorded for this surah (memorized, knew it, practice more, waiting)
+        const un = el("button", "ghost", r.status === "approved" || r.status === "known" ? "↩ Undo – not memorized" : "↩ Clear this answer");
+        un.onclick = async () => {
+          if (!confirm("Clear " + x[1] + " for " + child + "? Points from it are removed; recordings are kept.")) return;
+          const active = list().filter(q => q.child === child && q.surah === n && q.status !== "archived");
+          un.disabled = true; setMsg(st, "Saving…");
+          try {
+            for (const q of active) if (!String(q.id).startsWith("tmp")) await api({ ...auth(), action: "quran_delete", id: q.id });
+            window.quran = list().map(q => active.includes(q) ? (q.audio ? { ...q, status: "archived", points: 0 } : null) : q).filter(Boolean);
+            await load(); document.querySelectorAll(".nov").forEach(x => x.remove()); render(); window.renderQuran(true);
+            const s2 = $("qstatus"); if (s2) setMsg(s2, x[1] + " cleared for " + child + ".");
+          } catch (e) { un.disabled = false; setMsg(st, oldScript(e) ? "This needs the updated Google script." : e.message, true); }
+        };
         b.append(un);
       }
       card.append(b);

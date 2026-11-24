@@ -213,7 +213,10 @@ function handle_(p) {
       }
       const row = findRow_(qs, 1, p.id); if (!row) return bad('Not found.');
       const r = qs.getRange(row, 1, 1, 12).getValues()[0];
-      if (action === 'quran_delete') { if (r[9]) deleteAudio_(r[9]); qs.deleteRow(row); return { ok: true }; }
+      if (action === 'quran_delete') {                // undo: no points; a recording is kept (status "archived"), otherwise the row goes
+        if (r[9]) { qs.getRange(row, 6, 1, 4).setValues([[0, 'archived', user, new Date()]]); return { ok: true }; }
+        qs.deleteRow(row); return { ok: true };
+      }
       const st = ['approved', 'review', 'known'].indexOf(p.status) >= 0 ? p.status : null; if (!st) return bad('Bad answer.');
       qs.getRange(row, 6, 1, 4).setValues([[st === 'approved' ? surahPoints_(Number(r[3])) : 0, st, user, new Date()]]);
       qs.getRange(row, 11).setValue(String(p.note || '').slice(0, 200));
