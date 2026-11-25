@@ -96,7 +96,7 @@
       const st = stats(k.id, per.days), t = st.tot, done = t.ontime + t.late + t.verylate;
       const card = el("div", "scard"), head = el("div", "shead");
       const dayset = new Set(per.days.map(dayKey));       // Quran memorization points approved in this period
-      const qp = k.kid && Array.isArray(window.quran) ? window.quran.filter(q => q.child === k.id && q.status === "approved" && q.decided && dayset.has(dayKey(parts(q.decided)))).reduce((a, q) => a + q.points, 0) : 0;
+      const qp = k.kid && Array.isArray(window.quran) ? window.quran.filter(q => q.child === k.id && ["approved", "refresher", "helper"].includes(q.status) && (q.decided || q.created) && dayset.has(dayKey(parts(q.decided || q.created)))).reduce((a, q) => a + q.points, 0) : 0;
       const jum = per.days.filter(d => entries.some(e => e.child === k.id && e.day === dayKey(d) && e.jumuah && OK.includes(e.key))).length;
       const dk = new Set(per.days.map(dayKey)), mos = entries.filter(e => e.child === k.id && e.mosque && OK.includes(e.key) && dk.has(e.day)).length;
       const name = el("div"); name.append(el("b", null, k.id), el("div", "note", done + " of " + t.possible + " prayers" + (t.possible ? " · " + Math.round(done * 100 / t.possible) + "%" : "") + (jum ? " · 🕌 Jumu'ah ×" + jum : "") + (mos ? " · 🕌 Mosque ×" + mos : "") + (qp ? " · 📖 Quran +" + pts(qp) : "")));

@@ -11,7 +11,8 @@
  *   Requests – ID | Created | Child | Text | Audio ID | Status | Decided by | Decided | Reply
  *   Audio    – voice requests, split into chunks: ID | Part | Mime | Data
  *   Profiles – User | Photo | Updated
- *   Quran    – ID | Created | Child | Surah | Ayahs | Points | Status | Decided by | Decided | Audio ID | Note | Mode
+ *   Quran    – ID | Created | Child | Surah | Ayahs | Points | Status | Decided by | Decided | Audio ID | Note | Mode | Helper | Link
+ *              Status: pending / approved / review (practice more) / known / archived (undone) / refresher (+2 review) / helper (+7)
  *   Visits   – Time | User | Event | IP | City | Region | Country | Device | Browser | User agent  (children only; Dad sees it)
  */
 
@@ -36,6 +37,15 @@ const CELL = 45000;               // Google Sheets cell limit is 50,000 characte
 const SURAHS = { 1: 7, 82: 19, 86: 17, 87: 19, 90: 20, 91: 15, 93: 11, 94: 8, 95: 8, 96: 19, 97: 5, 98: 8, 99: 8, 100: 11, 101: 11,
   102: 8, 103: 3, 104: 9, 105: 5, 106: 4, 107: 7, 108: 3, 109: 6, 110: 3, 111: 5, 112: 4, 113: 5, 114: 6 };
 const surahPoints_ = n => SURAHS[n] <= 10 ? 10 : 15;
+const REVIEW_POINTS = 2, REVIEWS_PER_WEEK = 2;    // reciting a memorized surah again (microphone): 2 points, twice a week per surah
+const HELPER_POINTS = 7;                          // helping the other child memorize a surah (after Mom or Dad approves it)
+// week key = the Sunday the week starts on (Toronto), e.g. "2026-11-22"
+function weekKey_(d) {
+  const ymd = Utilities.formatDate(new Date(d), TZ, 'yyyy-MM-dd').split('-').map(Number);
+  const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(Utilities.formatDate(new Date(d), TZ, 'EEE'));
+  const sun = new Date(Date.UTC(ymd[0], ymd[1] - 1, ymd[2] - dow));
+  return Utilities.formatDate(sun, 'UTC', 'yyyy-MM-dd');
+}
 
 function doGet(e) { return out_(handle_((e && e.parameter) || {})); }
 function doPost(e) {
@@ -142,7 +152,18 @@ function handle_(p) {
 
   /* ---------- requests (children ask, parents decide) ---------- */
   const REQ_HEAD = ['ID', 'Created', 'Child', 'Text', 'Audio ID', 'Status', 'Decided by', 'Decided', 'Reply'];
-  const QURAN_HEAD = ['ID', 'Created', 'Child', 'Surah', 'Ayahs', 'Points', 'Status', 'Decided by', 'Decided', 'Audio ID', 'Note', 'Mode'];
+  const QURAN_HEAD = ['ID', 'Created', 'Child', 'Surah', 'Ayahs', 'Points', 'Status', 'Decided by', 'Decided', 'Audio ID', 'Note', 'Mode', 'Helper', 'Link'];
+  const quranSheet_ = () => { const q = sheet_('Quran', QURAN_HEAD);
+    if (q.getMaxColumns() < 14) q.insertColumnsAfter(q.getMaxColumns(), 14 - q.getMaxColumns());
+    if (q.getRange(1, 13).getValue() === '') q.getRange(1, 13, 1, 2).setValues([['Helper', 'Link']]); return q; };
+  // helper bonus rows: Status "helper", Link = the surah record they belong to
+  const addHelper_ = (qs, r, by) => {
+    const helper = String(r[12] || ''); if (!helper || KIDS.indexOf(helper) < 0 || helper === r[2]) return;
+    const qn = qs.getLastRow(), has = qn < 2 ? false : qs.getRange(2, 14, qn - 1, 1).getValues().some(x => x[0] === r[0]);
+    if (has) return;
+    qs.appendRow(['h' + Date.now().toString(36), new Date(), helper, Number(r[3]), Number(r[4]), HELPER_POINTS, 'helper', by, new Date(), '', 'Helped ' + r[2], 'helper', '', r[0]]);
+  };
+  const dropHelpers_ = (qs, id) => { for (let i = qs.getLastRow(); i >= 2; i--) if (qs.getRange(i, 14).getValue() === id) qs.deleteRow(i); };
   if (action === 'request_add') {
     if (KIDS.indexOf(user) < 0) return bad('Only Yousuf and Eva can send requests.');
     const text = String(p.text || '').trim().slice(0, 500);
@@ -190,36 +211,57 @@ function handle_(p) {
     if (p.audio && !audio) return bad('Bad recording.');
     if (audio.length > CELL * 60) return bad('The recording is too big (about 2 MB at most).');
     return locked_(() => {
-      const qs = sheet_('Quran', QURAN_HEAD), qn = qs.getLastRow();
+      const qs = quranSheet_(), qn = qs.getLastRow();
       const open = qn < 2 ? [] : qs.getRange(2, 1, qn - 1, 7).getValues().filter(r => r[2] === user && Number(r[3]) === n && ['pending', 'approved', 'known'].indexOf(r[6]) >= 0);
       if (open.length) return bad(open[0][6] === 'pending' ? 'This surah is already waiting for Mom or Dad.' : 'This surah is already counted.');
+      const helper = KIDS.indexOf(p.helper) >= 0 && p.helper !== user ? p.helper : '';
       const id = 'q' + Date.now().toString(36), audioId = audio ? saveAudio_(audio) : '';
-      qs.appendRow([id, new Date(), user, n, SURAHS[n], surahPoints_(n), 'pending', '', '', audioId, '', audio ? 'audio' : 'live']);
+      qs.appendRow([id, new Date(), user, n, SURAHS[n], surahPoints_(n), 'pending', '', '', audioId, '', audio ? 'audio' : 'live', helper, '']);
       return { ok: true, id: id };
+    });
+  }
+  if (action === 'quran_review') {                   // child: recites a surah they already memorized – +2, up to twice a week per surah
+    if (KIDS.indexOf(user) < 0) return bad('Only Yousuf and Eva can send a review.');
+    const n = Number(p.surah); if (!SURAHS[n]) return bad('Choose a surah from the list.');
+    const audio = normAudio_(p.audio); if (!audio) return bad('Record yourself reciting the surah first.');
+    if (audio.length > CELL * 60) return bad('The recording is too big (about 2 MB at most).');
+    return locked_(() => {
+      const qs = quranSheet_(), qn = qs.getLastRow(), vals = qn < 2 ? [] : qs.getRange(2, 1, qn - 1, 7).getValues();
+      if (!vals.some(r => r[2] === user && Number(r[3]) === n && (r[6] === 'approved' || r[6] === 'known'))) return bad('You can review a surah after Mom or Dad have counted it as memorized.');
+      const wk = weekKey_(new Date());
+      const done = vals.filter(r => r[2] === user && Number(r[3]) === n && r[6] === 'refresher' && r[1] instanceof Date && weekKey_(r[1]) === wk).length;
+      if (done >= REVIEWS_PER_WEEK) return bad('You already reviewed this surah ' + REVIEWS_PER_WEEK + ' times this week. Try another one!');
+      const id = 'r' + Date.now().toString(36), audioId = saveAudio_(audio);
+      qs.appendRow([id, new Date(), user, n, SURAHS[n], REVIEW_POINTS, 'refresher', 'auto', new Date(), audioId, '', 'review', '', '']);
+      return { ok: true, id: id, left: REVIEWS_PER_WEEK - done - 1 };
     });
   }
   if (action === 'quran_decide' || action === 'quran_mark' || action === 'quran_delete') {
     if (!isParent) return bad('Only Mom and Dad can do this.');
     return locked_(() => {
-      const qs = sheet_('Quran', QURAN_HEAD);
+      const qs = quranSheet_();
       if (action === 'quran_mark') {                 // parent: heard it in person (award) or "already knew it" (no points)
         const n = Number(p.surah); if (!SURAHS[n] || KIDS.indexOf(p.child) < 0) return bad('Choose a child and a surah.');
         const st = p.status === 'known' ? 'known' : 'approved', qn = qs.getLastRow();
         const done = qn < 2 ? [] : qs.getRange(2, 1, qn - 1, 7).getValues().filter(r => r[2] === p.child && Number(r[3]) === n && ['approved', 'known'].indexOf(r[6]) >= 0);
         if (done.length) return bad('This surah is already counted for ' + p.child + '.');
-        const id = 'q' + Date.now().toString(36);
-        qs.appendRow([id, new Date(), p.child, n, SURAHS[n], st === 'approved' ? surahPoints_(n) : 0, st, user, new Date(), '', String(p.note || '').slice(0, 200), 'live']);
+        const id = 'q' + Date.now().toString(36), helper = st === 'approved' && KIDS.indexOf(p.helper) >= 0 && p.helper !== p.child ? p.helper : '';
+        const rowv = [id, new Date(), p.child, n, SURAHS[n], st === 'approved' ? surahPoints_(n) : 0, st, user, new Date(), '', String(p.note || '').slice(0, 200), 'live', helper, ''];
+        qs.appendRow(rowv); if (helper) addHelper_(qs, rowv, user);
         return { ok: true, id: id };
       }
       const row = findRow_(qs, 1, p.id); if (!row) return bad('Not found.');
-      const r = qs.getRange(row, 1, 1, 12).getValues()[0];
+      const r = qs.getRange(row, 1, 1, 14).getValues()[0];
       if (action === 'quran_delete') {                // undo: no points; a recording is kept (status "archived"), otherwise the row goes
-        if (r[9]) { qs.getRange(row, 6, 1, 4).setValues([[0, 'archived', user, new Date()]]); return { ok: true }; }
-        qs.deleteRow(row); return { ok: true };
+        dropHelpers_(qs, r[0]);
+        const row2 = findRow_(qs, 1, p.id); if (!row2) return { ok: true };
+        if (r[9]) { qs.getRange(row2, 6, 1, 4).setValues([[0, 'archived', user, new Date()]]); return { ok: true }; }
+        qs.deleteRow(row2); return { ok: true };
       }
       const st = ['approved', 'review', 'known'].indexOf(p.status) >= 0 ? p.status : null; if (!st) return bad('Bad answer.');
       qs.getRange(row, 6, 1, 4).setValues([[st === 'approved' ? surahPoints_(Number(r[3])) : 0, st, user, new Date()]]);
       qs.getRange(row, 11).setValue(String(p.note || '').slice(0, 200));
+      if (st === 'approved') addHelper_(qs, r, user); else dropHelpers_(qs, r[0]);   // the helper gets 7 points only when it is approved
       return { ok: true };
     });
   }
@@ -360,11 +402,12 @@ function handle_(p) {
                  status: String(r[5] || 'pending'), decidedBy: String(r[6] || ''), decided: ms_(r[7]), reply: String(r[8] || '') }));
   const pf = sheet_('Profiles', ['User', 'Photo', 'Updated']), pl = pf.getLastRow();
   const photosAt = pl < 2 ? 0 : Math.max.apply(null, pf.getRange(2, 3, pl - 1, 1).getValues().map(r => ms_(r[0])));
-  const qsh = sheet_('Quran', QURAN_HEAD), ql = qsh.getLastRow();
-  const quran = ql < 2 ? [] : qsh.getRange(2, 1, ql - 1, 12).getValues()
+  const qsh = quranSheet_(), ql = qsh.getLastRow();
+  const quran = ql < 2 ? [] : qsh.getRange(2, 1, ql - 1, 14).getValues()
     .filter(r => r[0] && (isParent || r[2] === user))
     .map(r => ({ id: String(r[0]), created: ms_(r[1]), child: String(r[2]), surah: Number(r[3]), ayahs: Number(r[4]), points: Number(r[5]) || 0,
-                 status: String(r[6] || 'pending'), decidedBy: String(r[7] || ''), decided: ms_(r[8]), audio: String(r[9] || ''), note: String(r[10] || ''), mode: String(r[11] || '') }));
+                 status: String(r[6] || 'pending'), decidedBy: String(r[7] || ''), decided: ms_(r[8]), audio: String(r[9] || ''), note: String(r[10] || ''), mode: String(r[11] || ''),
+                 helper: String(r[12] || ''), link: String(r[13] || '') }));
   return { ok: true, user: user, admin: isAdmin, viewAll: isParent, rows: rows, notes: notes, tasks: tasks, requests: requests, siblings: siblings, quran: quran,
            taskTypes: TASK_TYPES, photosAt: photosAt, now: Date.now() };
 }

@@ -15,13 +15,21 @@
     [90, "Al-Balad", "البلد", 20], [87, "Al-A'la", "الأعلى", 19], [86, "At-Tariq", "الطارق", 17], [82, "Al-Infitar", "الانفطار", 19],
   ];
   const info = n => S.find(x => x[0] === n);
+  const MAIN = ["approved", "known", "pending", "review"];
+  const REVIEW_PTS = 2, REVIEWS_PER_WEEK = 2, HELPER_PTS = 7;
+  const weekKey = ms => { const p = parts(ms), d = new Date(Date.UTC(p[0], p[1] - 1, p[2])); d.setUTCDate(d.getUTCDate() - d.getUTCDay()); return d.toISOString().slice(0, 10); };
+  const reviewsThisWeek = (child, n) => list().filter(q => q.child === child && q.surah === n && q.status === "refresher" && weekKey(q.created) === weekKey(Date.now())).length;
+  const memorized = (child, n) => { const r = recOfMain(child, n); return r && (r.status === "approved" || r.status === "known"); };
+  function recOfMain(child, n) { const rs = list().filter(q => q.child === child && q.surah === n && MAIN.includes(q.status));
+    return rs.find(q => q.status === "approved") || rs.find(q => q.status === "known") || rs.find(q => q.status === "pending") || rs.sort((a, b) => b.created - a.created)[0] || null; }
+  const sibling = child => KIDS.map(k => k.id).find(k => k !== child);
   const ptsFor = v => v <= 10 ? 10 : 15;
   const MAX_REC = 120;
   let qKid = null, rec = null, recBlob = null, recFor = 0, recStart = 0, recTimer = null;
   const isParent = () => !!(session && (session.viewAll || session.admin));
   const list = () => Array.isArray(window.quran) ? window.quran : [];
   const recOf = (child, n) => {                      // the record that decides how the tile looks
-    const rs = list().filter(q => q.child === child && q.surah === n && q.status !== "archived");   // "archived" = undone, only its recording is kept
+    const rs = list().filter(q => q.child === child && q.surah === n && MAIN.includes(q.status));   // "archived" = undone; "refresher"/"helper" = extra points
     return rs.find(q => q.status === "approved") || rs.find(q => q.status === "known") || rs.find(q => q.status === "pending") || rs.sort((a, b) => b.created - a.created)[0] || null;
   };
   const recToDataUrl = async blob => {
@@ -56,7 +64,7 @@
   const setMsg = (st, m, err) => { st.className = "status" + (err ? " err" : ""); st.textContent = m; };
 
   /* points that count for a month (used by the month table / stats in index.html) */
-  window.quranPoints = (child, mk) => list().filter(q => q.child === child && q.status === "approved" && q.decided && monthKey(parts(q.decided)) === mk)
+  window.quranPoints = (child, mk) => list().filter(q => q.child === child && ["approved", "refresher", "helper"].includes(q.status) && (q.decided || q.created) && monthKey(parts(q.decided || q.created)) === mk)
     .reduce((a, q) => a + q.points, 0);
   window.quranBadge = () => isParent() ? list().filter(q => q.status === "pending").length : 0;
 
@@ -239,7 +247,15 @@
     const bar = el("div", "qbar"), fill = el("span"); fill.style.width = Math.round(done * 100 / S.length) + "%"; bar.append(fill);
     head.append(el("b", null, (parent ? child + " has" : "You have") + " memorized " + done + " of " + S.length + " surahs"), bar,
       el("span", "note", "This month: +" + pts(mp) + " points from the Quran (" + money(mp * RULES.dollarsPerPoint) + ")"));
-    box.append(head, st);
+    box.append(head);
+    if (!parent) { const rv = el("button", "primary qrevbtn", "🔁 Review a surah I memorized (+" + REVIEW_PTS + ")"); rv.onclick = () => openReviewPicker(child); box.append(rv); }
+    const extra = list().filter(q => q.child === child && (q.status === "helper" || (q.status === "refresher" && weekKey(q.created) === weekKey(Date.now())))).sort((a, b) => b.created - a.created);
+    if (extra.length) {
+      const ex = el("div", "qextra"); ex.append(el("b", null, "Reviews this week & helping"));
+      extra.slice(0, 12).forEach(q => { const xx = info(q.surah); ex.append(el("div", "note", (q.status === "helper" ? "🤝 Helped " + String(q.note || "").replace(/^Helped /, "") + " memorize " : "🔁 Reviewed ") + xx[1] + " · +" + q.points + " · " + fmtD(q.created))); });
+      box.append(ex);
+    }
+    box.append(st);
     const grid = el("div", "qgrid");
     S.forEach(x => {
       const r = recOf(child, x[0]), cls = r ? r.status : "none";
@@ -253,12 +269,54 @@
     box.append(grid);
   };
 
+  /* ---------- review a memorized surah: record with the microphone, +2, up to twice a week ---------- */
+  function reviewBlock(child, n, st, ov) {
+    const x = info(n), used = reviewsThisWeek(child, n), left = REVIEWS_PER_WEEK - used, box = el("div", "qreview");
+    box.append(el("b", null, "🔁 Review it (+" + REVIEW_PTS + " points)"), el("span", "note", used + " of " + REVIEWS_PER_WEEK + " reviews this week · keeps the surah fresh in your heart"));
+    if (left <= 0) { box.append(el("p", "note", "✅ Done for this week. You can review it again next week (from Sunday).")); return box; }
+    const rb = el("button", "recb" + (rec && rec.state === "recording" && recFor === n ? " on" : ""), rec && rec.state === "recording" && recFor === n ? "■ Stop" : "🎤 Record now"); rb.id = "qrecbtn";
+    rb.onclick = () => rec && rec.state === "recording" ? rec.stop() : startRec(n, st);
+    const row = el("div", "right left"); row.append(rb);
+    if (recBlob && recFor === n) {
+      const a = document.createElement("audio"); a.controls = true; a.src = URL.createObjectURL(recBlob); a.className = "aud";
+      const del = el("button", "ghost", "Record again"); del.onclick = () => { recBlob = null; openSurah(child, n); };
+      const send = el("button", "primary", "Send review (+" + REVIEW_PTS + ")");
+      send.onclick = async () => {
+        send.disabled = true; setMsg(st, "Sending…");
+        try {
+          const audio = await recToDataUrl(recBlob);
+          if (audio.length > 2700000) throw new Error("The recording is too long. Record a shorter one.");
+          const j = await apiPost({ ...auth(), action: "quran_review", surah: n, audio });
+          recBlob = null; await load(); ov.remove(); window.renderQuran(true);
+          const s2 = $("qstatus"); if (s2) setMsg(s2, "Great review of " + x[1] + "! +" + REVIEW_PTS + " points 🌟" + (j.left ? " (" + j.left + " more this week)" : ""));
+        } catch (e) { send.disabled = false; setMsg(st, oldScript(e) ? "Reviews need the updated Google script." : e.message, true); }
+      };
+      row.append(a, del); box.append(row, send);
+    } else box.append(row);
+    return box;
+  }
+  // child: list of memorized surahs to review
+  function openReviewPicker(child) {
+    document.querySelectorAll(".nov").forEach(x => x.remove());
+    const ov = el("div", "nov"), card = el("div", "novcard qsheet"), close = el("button", "ghost", "Close"); close.onclick = () => ov.remove();
+    const head = el("div", "phhead"); head.append(el("h2", null, "🔁 Review a surah"), close); card.append(head,
+      el("p", "note", "Recite a surah you already memorized: +" + REVIEW_PTS + " points each time, up to " + REVIEWS_PER_WEEK + " times a week per surah."));
+    const mine = S.filter(x => memorized(child, x[0]));
+    if (!mine.length) card.append(el("p", "note", "When Mom or Dad count a surah as memorized, it shows up here."));
+    const grid = el("div", "qgrid");
+    mine.forEach(x => { const used = reviewsThisWeek(child, x[0]), t = el("button", "qtile" + (used >= REVIEWS_PER_WEEK ? " q-known" : ""));
+      t.append(el("span", "qar", x[2]), el("span", "qen", x[1]), el("span", "qst", used >= REVIEWS_PER_WEEK ? "✅ done this week" : used + "/" + REVIEWS_PER_WEEK + " this week"));
+      t.onclick = () => { ov.remove(); openSurah(child, x[0]); }; grid.append(t); });
+    card.append(grid); ov.append(card); document.body.append(ov); ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  }
+
   function pendingCard(q, st) {
     const x = info(q.surah), c = el("div", "fcard qpend"), top = el("div", "fhead"), tx = el("div", "fmain");
     top.append(window.avatar ? window.avatar(q.child, "av sm") : el("span"));
     tx.append(el("b", null, q.child + " · " + x[1] + " (" + x[2] + ")"), el("div", "note", x[3] + " verses · +" + q.points + " points · " + fmtD(q.created) + ", " + fmtT(q.created)));
     top.append(tx); c.append(top);
     if (q.audio) c.append(playRec(q, st)); else c.append(el("div", "note", "🗣️ Says they recited it to you in person."));
+    if (q.helper) c.append(el("div", "qhelp", "🤝 " + q.helper + " helped – " + q.helper + " gets +" + HELPER_PTS + " when you approve"));
     const note = el("input"); note.placeholder = "Note (optional), e.g. practise verse 5"; note.maxLength = 200; note.setAttribute("aria-label", "Note for " + q.child);
     const ok = el("button", "primary", "✅ Memorized (+" + q.points + ")"), more = el("button", "ghost", "🔁 Practice more");
     ok.onclick = () => act({ action: "quran_decide", id: q.id, status: "approved", note: note.value.trim() }, () => Object.assign(q, { status: "approved", decidedBy: session.user, decided: Date.now(), note: note.value.trim() }), ok, st);
@@ -282,7 +340,8 @@
   }
   async function act(params, apply, btn, st) {
     btn.disabled = true; setMsg(st, "Saving…");
-    try { await api({ ...auth(), ...params }); apply(); document.querySelectorAll(".nov").forEach(x => x.remove()); render(); window.renderQuran(true); const s2 = $("qstatus"); if (s2) setMsg(s2, "Saved."); }
+    try { await api({ ...auth(), ...params }); apply(); document.querySelectorAll(".nov").forEach(x => x.remove()); render(); window.renderQuran(true); const s2 = $("qstatus"); if (s2) setMsg(s2, "Saved.");
+      load().then(() => window.renderQuran(true)).catch(() => {}); }                // picks up helper (+7) rows made by the script
     catch (e) { btn.disabled = false; setMsg(st, oldScript(e) ? "This needs the updated Google script." : e.message, true); }
   }
 
@@ -314,7 +373,9 @@
       const box = el("div", "qrecs"); box.append(el("b", "qrecsh", "🎧 " + (recs.length === 1 ? "Recording" : "Recordings (" + recs.length + ")")));
       recs.forEach(q => {
         const line = el("div", "qrec");
-        line.append(el("span", "note", fmtD(q.created) + ", " + fmtT(q.created) + " · " + { approved: "✨ approved", known: "✓ knew it", pending: "⏳ waiting", review: "🔁 practice more", archived: "↩ undone" }[q.status]), playRec(q, st));
+        line.append(el("span", "note", fmtD(q.created) + ", " + fmtT(q.created) + " · " + { approved: "✨ approved", known: "✓ knew it", pending: "⏳ waiting", review: "🔁 practice more", archived: "↩ undone", refresher: "🔁 review +" + REVIEW_PTS }[q.status]), playRec(q, st));
+        if (parent && q.status === "refresher") { const rm = el("button", "ghost xs", "✕ Remove the +" + REVIEW_PTS);
+          rm.onclick = () => { if (confirm("Remove the review points? The recording is kept.")) act({ action: "quran_delete", id: q.id }, () => Object.assign(q, { status: "archived", points: 0 }), rm, st); }; line.append(rm); }
         box.append(line);
       });
       card.append(box);
@@ -330,6 +391,11 @@
         const del = el("button", "ghost", "Delete recording"); del.onclick = () => { recBlob = null; openSurah(child, n); };
         row.append(a, del);
       }
+      const sib = sibling(child); let helper = "";
+      const hrow = el("div", "qhelprow"); hrow.append(el("span", "note", "🤝 Did " + sib + " help you memorize it?"));
+      const hseg = el("div", "seg"); [["", "No"], [sib, "Yes, " + sib + " helped"]].forEach(([v, t]) => { const bb = el("button", null, t); bb.setAttribute("aria-pressed", String(helper === v));
+        bb.onclick = () => { helper = v; [...hseg.children].forEach(c => c.setAttribute("aria-pressed", String(c === bb))); }; hseg.append(bb); });
+      hrow.append(hseg, el("span", "note qsmall", sib + " gets +" + HELPER_PTS + " points when Mom or Dad approve it."));
       const send = el("button", "primary", recBlob && recFor === n ? "Send to Mom and Dad" : "I recited it to Mom or Dad");
       send.onclick = async () => {
         send.disabled = true; setMsg(st, "Sending…");
@@ -338,10 +404,10 @@
           try { audio = recBlob && recFor === n ? await recToDataUrl(recBlob) : ""; } catch (e) { audio = ""; }
           let withVoice = !!audio;
           if (audio.length > 2700000) { audio = ""; withVoice = false; }              // too long to store: send without the voice
-          try { await apiPost({ ...auth(), action: "quran_submit", surah: n, audio }); }
+          try { await apiPost({ ...auth(), action: "quran_submit", surah: n, audio, helper }); }
           catch (e) {
             if (!audio || e.code === "net" || e.code === "login" || /already/i.test(e.message)) throw e;
-            await apiPost({ ...auth(), action: "quran_submit", surah: n, audio: "" });   // voice refused: send it anyway, without the voice
+            await apiPost({ ...auth(), action: "quran_submit", surah: n, audio: "", helper });   // voice refused: send it anyway, without the voice
             withVoice = false;
           }
           const hadRec = !!(recBlob && recFor === n);
@@ -349,8 +415,9 @@
           const s2 = $("qstatus"); if (s2) setMsg(s2, hadRec && !withVoice ? "Sent to Mom and Dad! 🌟 (The voice recording couldn't be saved, so recite it to them.)" : "Sent! Mom or Dad will listen soon. 🌟");
         } catch (e) { send.disabled = false; setMsg(st, oldScript(e) ? "The Quran tab needs the updated Google script." : e.message, true); }
       };
-      card.append(row, send);
+      card.append(row, hrow, send);
     }
+    if (!parent && r && (r.status === "approved" || r.status === "known")) card.append(reviewBlock(child, n, st, ov));
     if (parent) {                                     // parents: award after hearing it, mark "already knew it", or undo
       const b = el("div", "right left");
       if (!r || r.status === "review" || r.status === "pending") {
@@ -360,8 +427,10 @@
           more.onclick = () => act({ action: "quran_decide", id: r.id, status: "review" }, () => Object.assign(r, { status: "review", points: 0, decidedBy: session.user, decided: Date.now() }), more, st);
           b.append(ok, more);
         } else {
+          const sib = sibling(child), hl = el("label", "qmark"), hc = document.createElement("input"); hc.type = "checkbox"; hc.id = "qh-" + n;
+          hl.htmlFor = hc.id; hl.append(hc, document.createTextNode(" 🤝 " + sib + " helped (+" + HELPER_PTS + " for " + sib + ")")); card.append(hl);
           const ok = el("button", "primary", "✅ " + child + " recited it to me (+" + ptsFor(x[3]) + ")"), kn = el("button", "ghost", "✓ Already knew it (no points)");
-          ok.onclick = () => act({ action: "quran_mark", child, surah: n, status: "approved" }, () => window.quran.push({ id: "tmp" + Date.now(), created: Date.now(), child, surah: n, ayahs: x[3], points: ptsFor(x[3]), status: "approved", decidedBy: session.user, decided: Date.now(), audio: "", note: "", mode: "live" }), ok, st);
+          ok.onclick = () => act({ action: "quran_mark", child, surah: n, status: "approved", helper: hc.checked ? sib : "" }, () => window.quran.push({ id: "tmp" + Date.now(), created: Date.now(), child, surah: n, ayahs: x[3], points: ptsFor(x[3]), status: "approved", decidedBy: session.user, decided: Date.now(), audio: "", note: "", mode: "live" }), ok, st);
           kn.onclick = () => act({ action: "quran_mark", child, surah: n, status: "known" }, () => window.quran.push({ id: "tmp" + Date.now(), created: Date.now(), child, surah: n, ayahs: x[3], points: 0, status: "known", decidedBy: session.user, decided: Date.now(), audio: "", note: "", mode: "live" }), kn, st);
           b.append(ok, kn);
         }
@@ -370,7 +439,7 @@
         const un = el("button", "ghost", r.status === "approved" || r.status === "known" ? "↩ Undo – not memorized" : "↩ Clear this answer");
         un.onclick = async () => {
           if (!confirm("Clear " + x[1] + " for " + child + "? Points from it are removed; recordings are kept.")) return;
-          const active = list().filter(q => q.child === child && q.surah === n && q.status !== "archived");
+          const active = list().filter(q => q.child === child && q.surah === n && MAIN.includes(q.status));   // reviews already earned stay
           un.disabled = true; setMsg(st, "Saving…");
           try {
             for (const q of active) if (!String(q.id).startsWith("tmp")) await api({ ...auth(), action: "quran_delete", id: q.id });
@@ -428,6 +497,13 @@
   .qstate{margin:0;font-weight:600}.qstate.q-approved{color:#8a5a12}.qstate.q-known{color:var(--done)}.qstate.q-pending{color:var(--accent)}.qstate.q-review{color:var(--late)}
   .qsheet{max-height:88vh;overflow:auto}
   .fcard.qpend{border:1px dashed var(--accent)}
+  .qreview{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:12px;background:#fbf1d8;border:1px solid var(--gold)}
+  @media (prefers-color-scheme:dark){.qreview{background:#3d3018}}
+  .qrevbtn{width:100%}
+  .qextra{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:12px;background:var(--wait-bg)}
+  .qhelp{font-size:13px;font-weight:600;color:var(--accent)}
+  .qhelprow{display:flex;flex-direction:column;gap:6px}.qsmall{font-size:12px}
+  .qmark{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:14px;color:var(--fg);font-weight:600}.qmark input{width:auto}
   .qrecs{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:12px;background:var(--wait-bg)}
   .qrecsh{font-size:14px}.qrec{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
   .memob{min-height:40px}
