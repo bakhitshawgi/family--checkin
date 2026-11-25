@@ -128,6 +128,10 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .sibcard{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--wait-bg);flex-wrap:wrap}
 .sibcard[data-who=Yousuf]{background:var(--b-Yousuf)}.sibcard[data-who=Eva]{background:var(--b-Eva)}
 .sibtext{display:flex;flex-direction:column;flex:1;min-width:0}.sibtext span{font-size:13px;color:var(--muted)}
+.sibopen{background:var(--surface);color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:13px;font-weight:700}
+.sibquran{display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:12px;background:#fbf1d8;border:1px solid var(--gold)}
+@media (prefers-color-scheme:dark){.sibquran{background:#3d3018}}
+.sibsurahs{font-size:13px;line-height:1.7}
 .sibnudge{font-size:13px;font-weight:600;color:var(--accent);background:var(--surface);border-radius:999px;padding:5px 10px}
 .rowstitle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;padding:2px 2px 0}
 .cardname{text-decoration:underline dotted;text-decoration-color:var(--muted);text-underline-offset:4px;cursor:pointer}
@@ -191,7 +195,7 @@ select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--
       <li>Jumu'ah counts double: 2 points on time</li>
       <li>Prayed at the mosque: double points (2 on time)</li>
       <li>Memorizing a surah (Quran tab): 10 points up to 10 verses, 15 points for 11–20 verses</li>
-      <li>Reviewing a memorized surah (microphone): 2 points, up to twice a week per surah</li>
+      <li>Reviewing a memorized surah (microphone): 2 points, up to twice a week per surah and 10 reviews a week ($5)</li>
       <li>Helping your brother or sister memorize a surah: 7 points once Mom or Dad approve it</li>
       <li>1 point = $0.25</li>
     </ul>
@@ -398,7 +402,8 @@ const here = () => ({ lat: LOC.lat, lng: LOC.lng, place: LOC.name });
 /* ===== API ===== */
 let session = store.get("session");   // {user, pass, admin}
 let entries = [], loaded = false, sel = store.get("selkid") || "Yousuf", showLastMonth = false, busy = false;
-let focus = store.get("focus") || null;   // Dad / Mom: the one family member whose page is open (null = everyone)
+let focus = store.get("focus") || null;
+let sibView = store.get("sibview") || null;   // a child looking at the brother's / sister's page (view only)   // Dad / Mom: the one family member whose page is open (null = everyone)
 
 async function api(params) {
   const u = new URL(CONFIG.scriptUrl);
@@ -530,6 +535,7 @@ const friButtons = (right, late, onPick) => choiceButtons(right, late, [["Jumuah
 const prayButtons = (right, late, p, onPick) => choiceButtons(right, late, [["", p.toLowerCase(), "Prayed"], ["Mosque", "mosque", "At the mosque", "×2 points"]], onPick);
 const av = (id, cls) => window.avatar ? window.avatar(id, cls) : icon(kidKind(id), cls);
 // avatar you can tap to change the photo (your own; parents also the children's)
+window.__focus = () => focus; window.__setFocus = v => { focus = v; store.set("focus", v); };
 function photoAv(id) {
   const a = av(id, "av");
   if (window.canEditPhoto && window.canEditPhoto(id)) {
@@ -565,7 +571,9 @@ function render() {
   const canRemove = !!session.admin;                      // only Dad removes entries
   if (admin && focus && MEMBERS.includes(focus)) sel = focus; else focus = null;
   if (admin && !MEMBERS.includes(sel)) sel = KIDS[0].id;
-  const kid = admin ? sel : session.user;
+  if (admin || !sibView || sibView === session.user || !isKidId(sibView)) sibView = null;
+  const kid = admin ? sel : (sibView || session.user);
+  const viewOnly = !admin && kid !== session.user;          // child looking at the other child's page
   const otherParent = admin && !isKidId(kid) && kid !== session.user;   // Mom looking at Dad's prayers (or the other way): view only
   $("title").textContent = admin ? "Family prayers" : "Salam, " + session.user;
   $("whoami").textContent = "Signed in as " + session.user + (canRemove ? " (admin)" : admin ? " (parent)" : "") + ".";
@@ -597,9 +605,11 @@ function render() {
   const pc = $("parentcards"); pc.replaceChildren(); pc.hidden = !admin || !!focus;
   const todayPts = id => entries.filter(e => e.child === id && e.day === today).reduce((a, e) => a + e.points, 0);
   const prayedToday = id => entries.filter(e => e.child === id && e.day === today && e.points > 0).length;
-  if (admin && focus) {                                   // one person's page: big photo, name, today, their prayers
+  if ((admin && focus) || viewOnly) {                     // one person's page: big photo, name, today, their prayers
+    const focus = admin ? window.__focus() : kid;
     hello.className = "hello profile"; hello.dataset.who = focus;
-    const back = el("button", "ghost backbtn", "← Family"); back.onclick = () => { focus = null; store.set("focus", null); say(""); render(); window.scrollTo(0, 0); };
+    const back = el("button", "ghost backbtn", admin ? "← Family" : "← My page");
+    back.onclick = () => { if (admin) { window.__setFocus(null); } else { sibView = null; store.set("sibview", null); } say(""); render(); window.scrollTo(0, 0); };
     const preview = () => (window.photoOf && window.photoOf(focus)) ? window.viewPhoto(focus) : (window.canEditPhoto && window.canEditPhoto(focus) ? window.openPhotos(focus) : null);
     const big = av(focus, "av xl"); big.classList.add("zoomable"); big.setAttribute("role", "button"); big.tabIndex = 0; big.setAttribute("aria-label", "See " + focus + "'s photo");
     big.onclick = preview; big.onkeydown = e => { if (e.key === "Enter" || e.key === " ") preview(); };
@@ -629,7 +639,8 @@ function render() {
       const a = av(sb.id, "av sm");
       if (window.photoOf && window.photoOf(sb.id)) { a.classList.add("zoomable"); a.setAttribute("role", "button"); a.tabIndex = 0; a.setAttribute("aria-label", "See " + sb.id + "'s photo"); a.onclick = () => window.viewPhoto(sb.id); }
       const t = el("div", "sibtext"); t.append(el("b", null, sb.id), el("span", null, sb.today >= 5 ? "🌟 All five today!" : sb.today + " of 5 today"));
-      c.append(a, t);
+      const go = el("button", "sibopen", "See " + sb.id + "'s page ›"); go.onclick = () => { sibView = sb.id; store.set("sibview", sb.id); say(""); render(); window.scrollTo(0, 0); };
+      c.append(a, t, go);
       const open = PRAYERS.find(p => { const w = windowFor(p, tp); return now >= w.start && now <= w.end; });
       const mine = open && entries.some(e => e.child === kid && e.day === today && e.prayer === open && e.points > 0);
       if (open && !mine) c.append(el("span", "sibnudge", "🤝 Pray " + (jumuahDay(open, tp) ? "Jumu'ah" : open) + " together?"));
@@ -640,6 +651,7 @@ function render() {
   // today's prayers
   const box = $("prows"); box.replaceChildren();
   if (!loaded) box.append(el("p", "note", "Loading…"));
+  if (loaded && viewOnly) { const t = el("div", "rowstitle"); t.append(el("b", null, kid + "'s prayers today")); box.append(t); }
   if (loaded && admin && !focus) {
     const t = el("div", "rowstitle"); t.append(el("b", null, (sel === session.user ? "Your" : sel + "'s") + " prayers today"), el("span", "note", "Tap a name to open their page"));
     box.append(t);
@@ -656,10 +668,10 @@ function render() {
     if (done) {
       row.classList.add(done.key === "ontime" ? "done" : "late");
       right.append(el("span", "chip " + (done.key === "ontime" ? "ok" : "late"), "✓ " + (done.mosque ? "🕌 " + (done.mosqueName ? done.mosqueName + " · " : "") : "") + (fri ? pname(done) + " " : "") + fmtT(done.at) + " · +" + pts(done.points) + (done.by !== done.child ? " · " + done.by : "")));
-      if (canRemove || (now - done.at < UNDO_MINUTES * 60000 && (!admin || done.by === session.user))) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
+      if (!viewOnly && (canRemove || (now - done.at < UNDO_MINUTES * 60000 && (!admin || done.by === session.user)))) { const u = el("button", "ghost", "Undo"); u.onclick = () => undo(done, u); right.append(u); }
     } else if (now < w.start) {
       right.append(el("span", "chip", "Opens " + fmtT(w.start)));
-    } else if (otherParent) {
+    } else if (otherParent || viewOnly) {
       right.append(el("span", "chip", now > w.end ? "Not marked" : "Not yet"));
     } else if (admin && fri) {
       friButtons(right, false, kind => openMark(p, kid, w, right, kind));
@@ -683,6 +695,19 @@ function render() {
     }
     row.append(left, right, extra); box.append(row);
   });
+
+  if (loaded && (viewOnly || (admin && focus && isKidId(kid))) && Array.isArray(window.quran)) {
+    const qs = window.quran.filter(q => q.child === kid);
+    const mem = [...new Set(qs.filter(q => q.status === "approved" || q.status === "known").map(q => q.surah))];
+    const wk = (() => { const d = new Date(Date.UTC(tp[0], tp[1] - 1, tp[2])); d.setUTCDate(d.getUTCDate() - d.getUTCDay()); return d.getTime(); })();
+    const rev = qs.filter(q => q.status === "refresher" && q.created >= wk).length, helped = qs.filter(q => q.status === "helper").length;
+    const mos = entries.filter(e => e.child === kid && e.mosque && e.points > 0 && e.at >= wk).length;
+    const card = el("div", "sibquran");
+    card.append(el("b", null, "📖 Quran: " + mem.length + " of 28 surahs memorized"),
+      el("span", "note", "🔁 " + rev + " reviews this week · 🤝 helped " + helped + " time" + (helped === 1 ? "" : "s") + " · 🕌 " + mos + " mosque prayer" + (mos === 1 ? "" : "s") + " this week"));
+    if (mem.length && window.quranName) card.append(el("span", "sibsurahs", mem.map(n => "✨ " + window.quranName(n)).join("  ")));
+    box.append(card);
+  }
 
   // month
   const mp = showLastMonth ? parts(Date.UTC(tp[0], tp[1] - 2, 15)) : tp, mk = monthKey(mp);
@@ -758,6 +783,6 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) { re
 <script src="location.js?v=20261112a"></script>
 <script src="wisdom.js?v=20261125a"></script>
 <script src="countdown.js?v=20261115b"></script>
-<script src="quran.js?v=20261125a"></script>
+<script src="quran.js?v=20261125c"></script>
 </body>
 </html>

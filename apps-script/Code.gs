@@ -38,6 +38,7 @@ const SURAHS = { 1: 7, 82: 19, 86: 17, 87: 19, 90: 20, 91: 15, 93: 11, 94: 8, 95
   102: 8, 103: 3, 104: 9, 105: 5, 106: 4, 107: 7, 108: 3, 109: 6, 110: 3, 111: 5, 112: 4, 113: 5, 114: 6 };
 const surahPoints_ = n => SURAHS[n] <= 10 ? 10 : 15;
 const REVIEW_POINTS = 2, REVIEWS_PER_WEEK = 2;    // reciting a memorized surah again (microphone): 2 points, twice a week per surah
+const REVIEW_WEEK_MAX = 10;                       // and at most 10 reviews a week per child (10 × 2 points = $5)
 const HELPER_POINTS = 7;                          // helping the other child memorize a surah (after Mom or Dad approves it)
 // week key = the Sunday the week starts on (Toronto), e.g. "2026-11-22"
 function weekKey_(d) {
@@ -231,6 +232,8 @@ function handle_(p) {
       const wk = weekKey_(new Date());
       const done = vals.filter(r => r[2] === user && Number(r[3]) === n && r[6] === 'refresher' && r[1] instanceof Date && weekKey_(r[1]) === wk).length;
       if (done >= REVIEWS_PER_WEEK) return bad('You already reviewed this surah ' + REVIEWS_PER_WEEK + ' times this week. Try another one!');
+      const weekAll = vals.filter(r => r[2] === user && r[6] === 'refresher' && r[1] instanceof Date && weekKey_(r[1]) === wk).length;
+      if (weekAll >= REVIEW_WEEK_MAX) return bad('You reached this week\'s limit of ' + REVIEW_WEEK_MAX + ' reviews. Great job! More next week (from Sunday).');
       const id = 'r' + Date.now().toString(36), audioId = saveAudio_(audio);
       qs.appendRow([id, new Date(), user, n, SURAHS[n], REVIEW_POINTS, 'refresher', 'auto', new Date(), audioId, '', 'review', '', '']);
       return { ok: true, id: id, left: REVIEWS_PER_WEEK - done - 1 };
@@ -380,7 +383,7 @@ function handle_(p) {
     });
   }
   const rows = logVals
-    .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (isParent || r[1] === user))
+    .filter(r => r[0] instanceof Date && r[0].getTime() >= since && (isParent || r[1] === user || KIDS.indexOf(r[1]) >= 0))   // children see each other's prayers (not the parents')
     .map(r => [r[0].getTime(), String(r[1]), String(r[2]), String(r[3] || r[1]), r[4] === '' ? '' : Number(r[4]), r[5] === '' ? '' : Number(r[5]), String(r[6] || ''), String(r[7] || ''), String(r[8] || ''), String(r[9] || '')]);
   let notes = [];
   if (isParent) {                                    // notes are only sent to Mom and Dad
@@ -404,9 +407,9 @@ function handle_(p) {
   const photosAt = pl < 2 ? 0 : Math.max.apply(null, pf.getRange(2, 3, pl - 1, 1).getValues().map(r => ms_(r[0])));
   const qsh = quranSheet_(), ql = qsh.getLastRow();
   const quran = ql < 2 ? [] : qsh.getRange(2, 1, ql - 1, 14).getValues()
-    .filter(r => r[0] && (isParent || r[2] === user))
+    .filter(r => r[0] && (isParent || r[2] === user || KIDS.indexOf(r[2]) >= 0))
     .map(r => ({ id: String(r[0]), created: ms_(r[1]), child: String(r[2]), surah: Number(r[3]), ayahs: Number(r[4]), points: Number(r[5]) || 0,
-                 status: String(r[6] || 'pending'), decidedBy: String(r[7] || ''), decided: ms_(r[8]), audio: String(r[9] || ''), note: String(r[10] || ''), mode: String(r[11] || ''),
+                 status: String(r[6] || 'pending'), decidedBy: String(r[7] || ''), decided: ms_(r[8]), audio: isParent || r[2] === user ? String(r[9] || '') : '', note: isParent || r[2] === user ? String(r[10] || '') : '', mode: String(r[11] || ''),
                  helper: String(r[12] || ''), link: String(r[13] || '') }));
   return { ok: true, user: user, admin: isAdmin, viewAll: isParent, rows: rows, notes: notes, tasks: tasks, requests: requests, siblings: siblings, quran: quran,
            taskTypes: TASK_TYPES, photosAt: photosAt, now: Date.now() };

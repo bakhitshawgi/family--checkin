@@ -15,9 +15,11 @@
     [90, "Al-Balad", "البلد", 20], [87, "Al-A'la", "الأعلى", 19], [86, "At-Tariq", "الطارق", 17], [82, "Al-Infitar", "الانفطار", 19],
   ];
   const info = n => S.find(x => x[0] === n);
+  window.quranName = n => { const x = info(n); return x ? x[1] : "Surah " + n; };
   const MAIN = ["approved", "known", "pending", "review"];
-  const REVIEW_PTS = 2, REVIEWS_PER_WEEK = 2, HELPER_PTS = 7;
+  const REVIEW_PTS = 2, REVIEWS_PER_WEEK = 2, REVIEW_WEEK_MAX = 10, HELPER_PTS = 7;   // reviews: 2 per surah and 10 in total a week ($5)
   const weekKey = ms => { const p = parts(ms), d = new Date(Date.UTC(p[0], p[1] - 1, p[2])); d.setUTCDate(d.getUTCDate() - d.getUTCDay()); return d.toISOString().slice(0, 10); };
+  const reviewsWeekAll = child => list().filter(q => q.child === child && q.status === "refresher" && weekKey(q.created) === weekKey(Date.now())).length;
   const reviewsThisWeek = (child, n) => list().filter(q => q.child === child && q.surah === n && q.status === "refresher" && weekKey(q.created) === weekKey(Date.now())).length;
   const memorized = (child, n) => { const r = recOfMain(child, n); return r && (r.status === "approved" || r.status === "known"); };
   function recOfMain(child, n) { const rs = list().filter(q => q.child === child && q.surah === n && MAIN.includes(q.status));
@@ -274,6 +276,8 @@
     const x = info(n), used = reviewsThisWeek(child, n), left = REVIEWS_PER_WEEK - used, box = el("div", "qreview");
     box.append(el("b", null, "🔁 Review it (+" + REVIEW_PTS + " points)"), el("span", "note", used + " of " + REVIEWS_PER_WEEK + " reviews this week · keeps the surah fresh in your heart"));
     if (left <= 0) { box.append(el("p", "note", "✅ Done for this week. You can review it again next week (from Sunday).")); return box; }
+    const all = reviewsWeekAll(child);
+    if (all >= REVIEW_WEEK_MAX) { box.append(el("p", "note", "🏆 You reached this week's limit of " + REVIEW_WEEK_MAX + " reviews ($" + (REVIEW_WEEK_MAX * REVIEW_PTS * RULES.dollarsPerPoint).toFixed(2) + "). More next week!")); return box; }
     const rb = el("button", "recb" + (rec && rec.state === "recording" && recFor === n ? " on" : ""), rec && rec.state === "recording" && recFor === n ? "■ Stop" : "🎤 Record now"); rb.id = "qrecbtn";
     rb.onclick = () => rec && rec.state === "recording" ? rec.stop() : startRec(n, st);
     const row = el("div", "right left"); row.append(rb);
@@ -300,7 +304,8 @@
     document.querySelectorAll(".nov").forEach(x => x.remove());
     const ov = el("div", "nov"), card = el("div", "novcard qsheet"), close = el("button", "ghost", "Close"); close.onclick = () => ov.remove();
     const head = el("div", "phhead"); head.append(el("h2", null, "🔁 Review a surah"), close); card.append(head,
-      el("p", "note", "Recite a surah you already memorized: +" + REVIEW_PTS + " points each time, up to " + REVIEWS_PER_WEEK + " times a week per surah."));
+      el("p", "note", "Recite a surah you already memorized: +" + REVIEW_PTS + " points each time, up to " + REVIEWS_PER_WEEK + " times a week per surah and " + REVIEW_WEEK_MAX + " reviews a week in total."),
+      el("b", "qweek", "This week: " + reviewsWeekAll(child) + " of " + REVIEW_WEEK_MAX + " reviews"));
     const mine = S.filter(x => memorized(child, x[0]));
     if (!mine.length) card.append(el("p", "note", "When Mom or Dad count a surah as memorized, it shows up here."));
     const grid = el("div", "qgrid");
