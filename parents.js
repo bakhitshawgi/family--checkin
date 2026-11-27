@@ -139,7 +139,7 @@
       ss.forEach((s, i) => {
         const p = PRAYERS[i], row = el("div", "drow " + ({ ontime: "ok", late: "lt", verylate: "vl", missed: "ms" }[s.key] || "nx"));
         row.append(icon(s.e && (s.e.jumuah || s.e.mosque) ? "mosque" : p.toLowerCase(), "ticon"), el("span", "dp", s.e && s.e.jumuah ? "Jumu'ah" : p));
-        row.append(el("span", "ds", s.e ? STAT_TXT[s.key] + (s.e.mosque ? " · at " + (s.e.mosqueName || "the mosque") : "") + " · " + fmtT(s.e.at) + (s.e.by !== id ? " · by " + s.e.by : "") : STAT_TXT[s.key] || s.key));
+        row.append(el("span", "ds", s.e ? STAT_TXT[s.key] + (s.e.mosque ? " · at " + (s.e.mosqueName || "the mosque") : s.e.jumuah && s.e.mosqueName ? " · at " + s.e.mosqueName : "") + " · " + fmtT(s.e.at) + (s.e.by !== id ? " · by " + s.e.by : "") : STAT_TXT[s.key] || s.key));
         list.append(row);
       });
       card.append(list);
@@ -188,10 +188,10 @@
 
   function detail(child, d, prayer) {
     const s = statusOf(child, d, prayer, Date.now()), n = noteFor(child, s.day, prayer), card = el("div", "tdetail");
-    const label = s.e ? (s.e.jumuah ? "🕌 Jumu'ah · " : s.e.mosque ? "🕌 At " + (s.e.mosqueName || "the mosque") + " · " : "") + s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
+    const label = s.e ? (s.e.jumuah ? "🕌 Jumu'ah" + (s.e.mosqueName ? " at " + s.e.mosqueName : "") + " · " : s.e.mosque ? "🕌 At " + (s.e.mosqueName || "the mosque") + " · " : "") + s.e.label + " · " + fmtT(s.e.at) + " · +" + pts(s.e.points) + (s.e.by !== child ? " · marked by " + s.e.by : "")
       : s.key === "missed" ? "Not prayed (missed)" : s.key === "before" ? "Before tracking started" : s.key === "open" ? "Time is open now (until " + fmtT(s.w.end) + ")" : "Not due yet (starts " + fmtT(s.w.start) + ")";
     card.append(el("b", null, child + " · " + prayer + " · " + dayLabel(d)), el("div", "note", "Adhan " + fmtT(s.w.start) + " · " + label));
-    if (s.e && s.e.mosque && s.e.mosqueAddr) { const a = el("a", "mqmap", "📍 " + s.e.mosqueAddr + " – open in Maps"); a.href = window.mapLink(s.e.mosqueName, s.e.mosqueAddr); a.target = "_blank"; a.rel = "noopener"; card.append(a); }
+    if (s.e && (s.e.mosque || s.e.jumuah) && s.e.mosqueAddr) { const a = el("a", "mqmap", "📍 " + s.e.mosqueAddr + " – open in Maps"); a.href = window.mapLink(s.e.mosqueName, s.e.mosqueAddr); a.target = "_blank"; a.rel = "noopener"; card.append(a); }
     const isKid = KIDS.some(k => k.id === child);
     if (!s.e && (s.key === "missed" || s.key === "open") && window.markForm && (isKid || child === session.user)) {   // forgot to mark? allowed for 24 hours only
       if (window.canMark(s.w)) {
@@ -220,14 +220,14 @@
       .forEach(([v, t]) => { const o = el("option", null, t); o.value = v; sel.append(o); });
     sel.value = e.jumuah ? "Jumuah" : e.mosque ? "Mosque" : ""; wl.append(sel);
     const mi = window.mosqueInput("mqe-" + e.at, e.mosqueName, e.mosqueAddr);
-    const sync = () => { mi.hidden = sel.value !== "Mosque"; }; sel.onchange = sync; sync();
+    const sync = () => { mi.hidden = sel.value !== "Mosque" && sel.value !== "Jumuah"; }; sel.onchange = sync; sync();
     const save = el("button", "primary", "Save changes");
     save.onclick = async () => {
       const [hh, mm] = tin.value.split(":").map(Number); if (isNaN(hh)) return;
       const newAt = window.zonedAt(p, hh, mm), kind = sel.value;
       if (newAt > Date.now() + 60e3) return msg("That time is in the future.", true);
       if (newAt < w.start) return msg(e.prayer + " starts at " + fmtT(w.start) + ". Choose a later time.", true);
-      const mname = kind === "Mosque" ? mi.input.value.trim() : "", maddr = mname ? mi.addr() : "";
+      const mname = kind === "Mosque" || kind === "Jumuah" ? mi.input.value.trim() : "", maddr = mname ? mi.addr() : "";
       save.disabled = true; msg("Saving…");
       try {
         await api({ ...auth(), action: "edit_kind", child: e.child, at: e.at, newAt, kind, mosqueName: mname, mosqueAddr: maddr });

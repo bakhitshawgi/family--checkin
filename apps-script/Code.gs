@@ -316,7 +316,7 @@ function handle_(p) {
           if (day(newAt) !== day(at)) return bad('The time has to stay on the same day.');
           const friDhuhr = vals[i][2] === 'Dhuhr' && Utilities.formatDate(new Date(newAt), TZ, 'EEE') === 'Fri';
           const kind = p.kind === 'Jumuah' && friDhuhr ? 'Jumuah' : p.kind === 'Mosque' ? 'Mosque' : '';
-          const mosque = kind === 'Mosque';
+          const mosque = kind === 'Mosque' || kind === 'Jumuah';   // Jumu'ah keeps the mosque name too
           lg.getRange(i + 2, 1).setValue(new Date(newAt));
           lg.getRange(i + 2, 8, 1, 3).setValues([[kind, mosque ? String(p.mosqueName || '').trim().slice(0, 60) : '', mosque ? String(p.mosqueAddr || '').trim().slice(0, 150) : '']]);
           return { ok: true, at: newAt };
@@ -345,7 +345,7 @@ function handle_(p) {
         const lat = Number(p.lat), lng = Number(p.lng);   // place the prayer times were counted for (nearest city, never exact GPS)
         const okLoc = isFinite(lat) && isFinite(lng) && lat !== 0 && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
         const jumuah = p.kind === 'Jumuah' && p.prayer === 'Dhuhr' && Utilities.formatDate(new Date(at), TZ, 'EEE') === 'Fri';   // Friday only
-        sh.appendRow([new Date(at), child, p.prayer, user, okLoc ? Math.round(lat * 100) / 100 : '', okLoc ? Math.round(lng * 100) / 100 : '', okLoc ? String(p.place || '').slice(0, 60) : '', jumuah ? 'Jumuah' : p.kind === 'Mosque' ? 'Mosque' : '', !jumuah && p.kind === 'Mosque' ? String(p.mosqueName || '').trim().slice(0, 60) : '', !jumuah && p.kind === 'Mosque' ? String(p.mosqueAddr || '').trim().slice(0, 150) : '']);
+        sh.appendRow([new Date(at), child, p.prayer, user, okLoc ? Math.round(lat * 100) / 100 : '', okLoc ? Math.round(lng * 100) / 100 : '', okLoc ? String(p.place || '').slice(0, 60) : '', jumuah ? 'Jumuah' : p.kind === 'Mosque' ? 'Mosque' : '', jumuah || p.kind === 'Mosque' ? String(p.mosqueName || '').trim().slice(0, 60) : '', jumuah || p.kind === 'Mosque' ? String(p.mosqueAddr || '').trim().slice(0, 150) : '']);
         return { ok: true, at: at };
       }
       const last = sh.getLastRow();
