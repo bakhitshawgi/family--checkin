@@ -775,6 +775,7 @@ $("monthtoggle").onclick = () => { showLastMonth = !showLastMonth; render(); };
   render(); load();
   setTimeout(() => window.reportVisit && window.reportVisit("open"), 0);   // counted at most once every 30 min
 })();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});   // lets Chrome offer "Install app"
 setInterval(() => { render(); }, 30000);
 setInterval(() => { if (!document.hidden) load(); }, 120000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) { render(); load(); if (window.reportVisit) window.reportVisit("open"); } });
