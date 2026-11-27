@@ -101,6 +101,7 @@ ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
 .mqchips{display:flex;flex-wrap:wrap;gap:6px}
 .mqaddr a{font-size:13px;color:var(--accent);text-decoration:none}.mqaddr:empty{display:none}
 .mqsugg{display:flex;flex-direction:column;gap:4px}.mqsugg:empty{display:none}
+.mqgoogle{font-size:13px;color:var(--accent);text-decoration:none;padding:4px 2px}
 .mqopt{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:1px;background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:8px 10px;font-weight:400}
 .mqopt b{font-size:14px}.mqopt span{font-size:12px;color:var(--muted)}.mqchip{background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600}
 .right.wide{grid-column:1/-1;justify-content:flex-start}
@@ -387,8 +388,11 @@ function mosqueInput(id, value, addrValue) {     // name field: suggestions with
       const my = ++seq; list.replaceChildren(el("span", "note", "Searching…"));
       try {
         const res = await searchMosques(q); if (my !== seq) return;
-        list.replaceChildren(...(res.length ? res.map(row) : [el("span", "note", "No match – the name you typed will be saved as it is.")]));
-      } catch (e) { if (my === seq) list.replaceChildren(el("span", "note", "Search isn't available right now – the name you typed will be saved.")); }
+        // always offer a free Google Maps search for what was typed (to check the right name / address)
+        const g = el("a", "mqgoogle", "🔎 Not here? Search “" + q + "” on Google Maps"); g.href = "https://www.google.com/maps/search/" + encodeURIComponent(q + " mosque"); g.target = "_blank"; g.rel = "noopener";
+        list.replaceChildren(...(res.length ? res.map(row) : [el("span", "note", "No match – the name you typed will be saved as it is.")]), g);
+      } catch (e) { if (my === seq) { const g = el("a", "mqgoogle", "🔎 Search “" + q + "” on Google Maps"); g.href = "https://www.google.com/maps/search/" + encodeURIComponent(q + " mosque"); g.target = "_blank"; g.rel = "noopener";
+        list.replaceChildren(el("span", "note", "Search isn't available right now – the name you typed will be saved."), g); } }
     }, 350);
   };
   w.append(inp, addrLine, list);
